@@ -1,6 +1,6 @@
 ---
 name: undecree
-description: Finds "dogmas" in agent config — one-off comments fossilized into absolute rules ("never use Opus", "only reply in 6 words") with no scope, reason or exception — across Claude Code, Codex, Cursor, Windsurf, Gemini, Devin, OpenCode and project CLAUDE.md/AGENTS.md files, then opens a review page where the user keeps, rewrites or deletes each one. Use when an agent refuses something it used to do, when asked to audit or clean agent rules, memory or harness config, or on "quita esa regla", "limpia mis dogmas", "por qué no usas X", "why won't you use X", "eso ya no aplica", "undecree".
+description: Finds "dogmas" in agent config — one-off comments fossilized into absolute rules ("never use Opus", "only reply in 6 words") with no scope, reason or exception — across Claude Code, Codex, Cursor, Windsurf, Gemini, Devin, OpenCode and project CLAUDE.md/AGENTS.md files, then has the user keep, rewrite or delete each one, in the chat by default or in an HTML review page if they ask for it. Use when an agent refuses something it used to do, when asked to audit or clean agent rules, memory or harness config, or on "quita esa regla", "limpia mis dogmas", "por qué no usas X", "why won't you use X", "eso ya no aplica", "undecree".
 ---
 
 # undecree
@@ -9,7 +9,7 @@ description: Finds "dogmas" in agent config — one-off comments fossilized into
 
 A **dogma** is an absolute directive that lost its context: a one-off comment ("I'm low on credits", "just run this overnight", "I'm tired") saved as a permanent rule. Agents then enforce it forever.
 
-Workflow: **scan → triage with your own judgment → review page → apply what the user marks.** The user gets the final say on every item; your job is to do the reading so they only decide.
+Workflow: **scan → triage with your own judgment → review (in the chat, or an HTML page if the user wants it) → apply what the user marks.** The user gets the final say on every item; your job is to do the reading so they only decide.
 
 Brand (mark, palette, voice): [assets/BRAND.md](assets/BRAND.md). Don't restyle the page, and don't add copy it doesn't need.
 
@@ -61,7 +61,30 @@ Open the top candidates and read around them; memory files are small, read them 
 - Healthy rules go in `clean` (or leave them out). A `healthy` item is folded into `clean` automatically.
 - Write `proposal` for every card you suggest rewriting; the user edits it in place. Write `context` as **one sentence**: why it's a problem. No file inventories, no restating the rule.
 
-Write `items.json`, render and open:
+Write `items.json` only if you will render the page (below). For an in-chat review you just need the cards in your head.
+
+## Step 2b — review: chat by default, HTML only on request
+
+**Do not generate or open an HTML page on your own.** Ask once, in one short line, and wait:
+
+> ¿Lo revisamos aquí en el chat o prefieres una página HTML con vista de lista y tarjetas?
+
+Match the user's language. If they already said how they want it, don't ask. If they don't answer the question and just talk about the rules, use the chat.
+
+**In the chat (default).** Show each card as a compact numbered block, worst first, 12 at most:
+
+```
+1. ~/.claude/CLAUDE.md:7  [fossil]
+   - Do not use Claude Opus for council, sol-loop, or any other subagent.
+   Problema: un comentario de créditos bajos quedó como prohibición universal.
+   Si lo borras: vuelves a poder usar Opus sin tener que pedirlo.
+   Propuesta: - Default to Sonnet/Haiku for subagents (límite de coste, 2026-10-22). Excepción: Opus si lo pides.
+   Sugerido: reescribir
+```
+
+Then list the healthy rules you skipped in one line each (path, why fine). Tell the user they can answer in short form: `1 reescribir, 2 borrar, 3 mantener`, `todo sugerido`, or `3 reescribir pero con "..."`; anything not mentioned stays untouched. Treat free text about a card as its `comment`. **End your turn there; don't edit anything yet.** Map the answer to the same actions as Step 3 (`reescribir`→`rescope`, `borrar`→`delete`, `mantener`→`keep`, `investigar`→`review`).
+
+**HTML page (only if the user asks).** Write `items.json`, render and open:
 
 ```bash
 python3 <skill-dir>/scripts/make_review.py items.json -o review.html --open
@@ -100,7 +123,7 @@ Then tell the user to mark each card and paste back the copied JSON. **End your 
 
 ## Step 3 — apply
 
-The user pastes `{ "decisions": [...] }`. Per decision:
+The user answers in the chat (short form above) or pastes `{ "decisions": [...] }` from the page. Per decision:
 
 | action | do |
 |---|---|

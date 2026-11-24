@@ -2,7 +2,7 @@
   <img src="assets/banner.png" width="100%" alt="undecree: a rule that bans Opus for subagents, crossed out and rewritten with a scope, a date and an exception">
 </p>
 
-<p align="center">One agent skill that finds the one-off comments your agents turned into permanent rules, and opens a review page where you keep, rewrite or delete each one.</p>
+<p align="center">One agent skill that finds the one-off comments your agents turned into permanent rules, and lets you keep, rewrite or delete each one, in the chat or in a review page if you prefer.</p>
 
 <p align="center">
   <a href="https://github.com/felipebasurto/undecree/actions/workflows/test.yml"><img src="https://github.com/felipebasurto/undecree/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
@@ -19,7 +19,7 @@ That is a **dogma**: an absolute directive that lost its context. A one-off comm
 - **It reads every harness you have.** Claude Code, Codex, Cursor, Windsurf, Gemini CLI, Devin, OpenCode, plus project `CLAUDE.md` / `AGENTS.md` files. One scan, one list.
 - **It ranks, then the agent judges.** A scanner scores every absolute line (bans, "always", "only", "from now on", limits like "under 20 words") and notes whether it has a scope, a reason, a date and an exception. The agent then opens the files and decides. The scanner is a candidate finder, not a verdict.
 - **One card per rule, not per file.** The same rule restated in an index line, a memory description and `CLAUDE.md` is one decision, applied to all three.
-- **You decide, it applies.** A review page with a **List** view and a **Cards** view you can swipe. Nothing is edited until you paste your decisions back.
+- **You decide, it applies.** Review in the chat by default, or ask for the page: a **List** view and a **Cards** view you can swipe. Nothing is edited until you answer.
 - **It says what deleting would do.** Every card has an "If you delete it" line: what the agent will start doing again, and what it costs.
 
 ## Quick start
@@ -36,11 +36,11 @@ Then, in your agent:
 
 Codex uses `$undecree`, the Claude Code plugin uses `/undecree:undecree`. It also triggers on "why won't you use X", "clean my dogmas", "that rule no longer applies" and similar.
 
-The agent scans, reads the top candidates, writes an `items.json`, and opens `review.html`. You mark each card, copy the decisions, and paste them back. It applies them and re-scans the files it touched.
+The agent scans, reads the top candidates, and shows you each one. By default you answer **in the chat** (`1 rewrite, 2 delete, 3 keep`, or `accept suggested`). If you would rather click and swipe, ask for the page and it writes `items.json` and opens `review.html`; you mark each card, copy the decisions and paste them back. Either way it applies them and re-scans the files it touched. The HTML page never opens unless you ask for it.
 
-## The review page
+## The review page (optional)
 
-A single HTML file. No server, no network needed, state kept in the browser.
+Only when you ask for it; the default is to review in the chat. A single HTML file. No server, no network needed, state kept in the browser.
 
 <p align="center">
   <img src="assets/list.png" width="49%" alt="List view: two cards, each with the current rule in red, the proposed rule in green, why it is a problem, what happens if you delete it, and four choices">
@@ -75,7 +75,7 @@ If a user sent you this repo and said "use this":
 ## How it works
 
 ```
-scan  ->  triage  ->  review page  ->  apply
+scan  ->  triage  ->  review (chat or page)  ->  apply
 ```
 
 **1. Scan.** [`find_dogmas.py`](skills/undecree/scripts/find_dogmas.py) walks the config of every harness it finds under `$HOME` and ranks the lines.
@@ -110,7 +110,7 @@ Harnesses found: claude-code, codex, cursor, devin, gemini, opencode, windsurf
 
 **2. Triage.** The agent opens the top candidates and reads around them. It writes `items.json`: one card per rule, a verdict, a suggested action, a proposed rewrite and the "if you delete it" outcome. Healthy rules go to a separate list and never get a card. See the [schema](skills/undecree/SKILL.md#itemsjson).
 
-**3. Review.** [`make_review.py`](skills/undecree/scripts/make_review.py) turns `items.json` into the page above. You copy the decisions as JSON.
+**3. Review.** The agent asks whether you want it in the chat or as a page. In the chat it shows numbered cards and you answer in short form. For the page, [`make_review.py`](skills/undecree/scripts/make_review.py) turns `items.json` into the HTML above and you copy the decisions as JSON.
 
 **4. Apply.** Per decision:
 
