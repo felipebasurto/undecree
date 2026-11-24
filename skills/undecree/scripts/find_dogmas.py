@@ -107,10 +107,10 @@ TIER1_EN = re.compile(
     r"|is not allowed|are not allowed|not allowed|under no circumstances"
     r"|in no case|on no account|prohibited|forbidden|no uses"
     r"|avoid|refrain from|refuse to|no more|stop (?:\w+ing|using|adding|doing)"
-    r"|off[- ]limits|banned|ban on|no-go|out of bounds|forbid\w*"
+    r"|off[- ]limits|banned|ban on|no-go|out of bounds|forbid\w*|stay away from|steer clear of|not a single|under no conditions?|out of scope"
     r"|quit \w+ing|should(?: not|n'?t)|(?:nobody|no one|nothing) should|absolutely no"
     r"|off the table|forget (?:what|about|everything|that)|pause (?:all )?\w+|freez\w+|frozen"
-    r"|no (?:deploys?|deployments?|commits?|pushes|merges?|tests?|comments?|emojis?|tables?|docs?"
+    r"|no (?:deploys?|deployments?|commits?|pushes|merges?|tests?|comments?|emojis?|tables?|docs?|branch(?:es|ing)"
     r"|questions?|refactors?|new files?|new dependencies))\b",
     re.IGNORECASE,
 )
@@ -118,7 +118,7 @@ TIER1_EN = re.compile(
 BARE_NO = re.compile(r"^\s*(?:[-*+\u2022]\s*|\d+[.)]\s*)?(?:\*\*)?(?:No|Sin|Nada de|Zero)\s+[A-Za-z`][^.]{0,60}\.?\s*$")
 TIER1_ES = re.compile(
     r"\b(?:nunca|jam[aá]s|prohibid[oa]s?|bajo ninguna circunstancia"
-    r"|en ning[uú]n caso|ning[uú]n caso|no uses?|no debes|no deber[ií]as"
+    r"|en ning[uú]n caso|ning[uú]n caso|no uses?|no debes|no deber[ií]as|cero \w+|nada de \w+"
     r"|evit(?:a|ar|es)|deja(?:r)? de"
     r"|no (?:hagas|pongas|a[nñ]adas|incluyas|escribas|ejecutes|toques|borres|crees"
     r"|menciones|digas|llames|lances|generes|modifiques|edites|instales|preguntes"
@@ -134,13 +134,15 @@ TIER2 = re.compile(
     r"|ask (?:me )?before (?:every|each|any|running|editing|touching)"
     r"|keep (?:\w+ ){0,3}(?:short|brief|concise|terse)"
     r"|(?:under|below|at most|no more than|up to|max(?:imum)?(?: of)?) \d+ (?:words|lines|sentences|paragraphs)"
-    r"|(?:in|with) (?:only )?\d+ words|exactly \d+"
+    r"|(?:in|with) (?:only )?\d+ words|exactly \d+|(?:to|in|with) (?:one|a single|1) (?:sentence|line|word|paragraph)"
+    r"|all (?:\w+ ){1,4}(?:runs?|uses?|goes|go) (?:on|with|via|through)|quiero (?:solo|s[oó]lo|[uú]nicamente)"
     r"|siempre|tiene que|hay que|debe |solo (?:responde|contesta|usa|escribe|habla)|[uú]nicamente"
     r"|menos de \d+ palabras|m[aá]ximo (?:de )?\d+ (?:palabras|l[ií]neas|frases))\b",
     re.IGNORECASE,
 )
 ONLY_END = re.compile(r"\b\w+ only(?:[.!,;]|\s*$)", re.IGNORECASE)
-IDIOMS = re.compile(r"\bnever[- ]?(?:mind|ending)\b|\bnevertheless\b|\bnever-\w+|\w+-never\b", re.IGNORECASE)
+IDIOMS = re.compile(r"\bnever[- ]?(?:mind|ending)\b|\bnevertheless\b|\bnever-\w+|\w+-never\b"
+                    r"|\b(?:always|only)-\w+|\b\w+-only\b", re.IGNORECASE)
 # The origin of a rule showing through: time-bound or emotional context. A line with
 # one of these is worth a look even when it has no absolute word at all.
 TEMPORAL = re.compile(
@@ -155,6 +157,7 @@ TEMPORAL = re.compile(
     r"|(?:save|saving|cut|reduce) (?:money|tokens|credits|costs?)|cheap(?:er|est)? models?|budget under control"
     r"|too (?:expensive|costly|slow|verbose|long|chatty|much)|costs? too much|car[ií]simo|muy caro|demasiado caro"
     r"|right now|currently|anymore|any more|no longer|budget (?:is|are) (?:tight|low|limited)"
+    r"|until (?:v\d|q[1-4]|\d)|while (?:i'?m|we'?re|i am|we are)|changed (?:his|her|their|my|your) mind|hasta que"
     r"|hates?|furious|angry|annoyed|frustrated|fed up|sick of|can'?t stand"
     r"|harto|harta|odia|odio|me molesta|me cansa|ya no)\b",
     re.IGNORECASE,
@@ -294,6 +297,26 @@ def score_for(tier: int, flags: dict, harness: str, kind: str, text: str,
     return sc
 
 
+# A line that only states a fact ("The cron never runs on weekends.") is hidden from the
+# ranked list unless it carries one of these: an explicit prohibition, or a topic where
+# one-off comments tend to fossilize. Global ones go to the --unflagged list instead.
+STRONG_BAN = re.compile(
+    r"\b(?:prohibit\w*|forbid\w*|banned?|off[- ]limits|off the table|not allowed|must not|do not|don'?t"
+    r"|never ever|under no|nunca|jam[aá]s|prohibid[oa]s?|no uses?)\b", re.IGNORECASE)
+# Third-person statements about how something is ("The cron never runs on weekends.",
+# "Only two engineers have prod access."), as opposed to an instruction.
+FACT_START = re.compile(
+    r"^(?:the(?! (?:user|owner|founder|client)\b)|this(?! (?:week|month|quarter|sprint|year|weekend|afternoon|morning|evening)\b)|that|these|those|our|its|their|there|it(?!['\u2019])|nobody|no one|everyone|everybody"
+    r"|only (?:\d+|two|three|four|five|several|some|a few|admins?|owners?|maintainers?))\b", re.IGNORECASE)
+FACT_VERB = re.compile(r"\b(?:is|are|was|were) (?:never|always|only)\b", re.IGNORECASE)
+# What still counts as an instruction inside a sentence that otherwise reads as a fact.
+STRONG_FACT = re.compile(r"\b(?:do not|don'?t|must(?: not)?|never ever|should(?: not|n'?t)?|(?:nobody|no one|nothing) should)\b", re.IGNORECASE)
+FIRST_PERSON = re.compile(r"\b(?:i|i'?m|i'?ll|i'?ve|me|my|we|we'?re|we'?ve|you|your)\b", re.IGNORECASE)
+WHY_RE = re.compile(r"^\s*(?:[-*+]\s*)?(?:\*\*)?why:?(?:\*\*)?:?\s", re.IGNORECASE)
+MEMTYPE_RE = re.compile(r"^\s*type:\s*(\w+)\s*$")
+URL_RE = re.compile(r"https?://")
+MEMTYPE_ADJ = {"user": -4, "reference": -4, "feedback": 1}
+
 UNFLAGGED = []   # directive-shaped lines in global files that no pattern matched
 RULE_FILES = {"CLAUDE.md", "AGENTS.md", "GEMINI.md", "QWEN.md", "global_rules.md"}
 BULLET_RE = re.compile(r"^\s*(?:[-*+\u2022]|\d+[.)])\s+\S")
@@ -331,6 +354,16 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
     file_has_exception = bool(EXCEPTION_RE.search(text))
 
     lines = text.splitlines()
+    mtype = None
+    if file_kind in ("memory", "memory-index") and lines[:1] == ["---"]:
+        for fl in lines[1:15]:
+            if fl.strip() == "---":
+                break
+            mm = MEMTYPE_RE.match(fl)
+            if mm:
+                mtype = mm.group(1).lower()
+    first_bullet = next((j for j, l in enumerate(lines) if BULLET_RE.match(l)), len(lines))
+    is_rule_file = path.name in RULE_FILES
     in_fence = False
     in_comment = False
     for i, line in enumerate(lines):
@@ -353,7 +386,7 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
         cleaned = IDIOMS.sub(" ", line)   # "never mind" is not a ban
         if TIER1_EN.search(cleaned) or TIER1_ES.search(cleaned) or BARE_NO.match(line):
             signals.append("ban")
-        if TIER2.search(line) or ONLY_END.search(line):
+        if TIER2.search(cleaned) or ONLY_END.search(cleaned):
             signals.append("absolute")
         if TEMPORAL.search(line):
             signals.append("temporal")
@@ -366,7 +399,21 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
         win = window(lines, i)
         flags = flags_for(win)
         shape = shape_of(line)
+        role = "rule"
+        if WHY_RE.match(line):
+            role = "reason"          # explains a rule written elsewhere in the file
+        elif is_rule_file and i < first_bullet and not line.lstrip().startswith("#"):
+            role, shape = "preamble", "descriptive"   # what the file is, not a rule in it
         topic = bool(TOPIC_RE.search(win))
+        body = re.sub(r"^\s*(?:[-*+\u2022]|\d+[.)])?\s*(?:\*\*[^*]+\*\*:?\s*)?", "", line).strip()
+        fact = (bool(FACT_START.match(body)) and not FIRST_PERSON.search(body)) or (shape == "descriptive" and bool(FACT_VERB.search(body)))
+        is_fact = role == "preamble" or fact
+        if is_fact and not topic and not (STRONG_FACT.search(line) if fact else STRONG_BAN.search(line)):
+            # states a fact, not a rule: keep it out of the ranked list
+            if harness != "project" and keep_unflagged(path, file_kind, line):
+                UNFLAGGED.append({"harness": harness, "kind": file_kind, "path": str(path),
+                                  "line": i + 1, "text": line.strip()[:300]})
+            continue
         style = bool(STYLE_RE.search(win))
         age = age_days(win)
         findings.append({
@@ -382,7 +429,10 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
             "file_has_exception": file_has_exception,
             "topic": topic,
             "age_days": age,
-            "score": score_for(tier, flags, harness, file_kind, line.strip(), topic, style, age, signals, shape),
+            "mem_type": mtype,
+            "role": role,
+            "score": score_for(tier, flags, harness, file_kind, line.strip(), topic, style, age, signals, shape)
+                     + MEMTYPE_ADJ.get(mtype, 0) - (3 if role == "reason" else 0) - (2 if URL_RE.search(line) else 0),
         })
 
 
@@ -562,6 +612,10 @@ def main() -> int:
                     help="also list global-config lines no pattern matched, so nothing hides behind the regexes")
     ap.add_argument("--unflagged-all", action="store_true",
                     help="with --unflagged, include memory file bodies too")
+    ap.add_argument("--top", type=int, default=40, metavar="N",
+                    help="show the N best global entries (default 40; 0 = all)")
+    ap.add_argument("--all", action="store_true",
+                    help="do not collapse repeats of the same rule or file into one entry")
     ap.add_argument("--verbose", action="store_true",
                     help="list every directive line in project files (default: top few)")
     args = ap.parse_args()
@@ -605,19 +659,50 @@ def main() -> int:
     glob = [f for f in findings if f["harness"] != "project"]
     proj = [f for f in findings if f["harness"] == "project"]
 
-    print(f"\n== global config: {len(glob)} candidates, best first ==")
+    # One entry per rule: the same rule restated in other files (cluster) and several hits
+    # in one memory file collapse into the best-ranked line, with the others listed under it.
+    entries, seen_cluster, seen_file = [], {}, {}
+    size = {}
     for f in glob:
+        if f["cluster"]:
+            size[f["cluster"]] = size.get(f["cluster"], 0) + 1
+    for f in glob:
+        # a cluster that big is several rules chained together by shared words: leave it unmerged
+        key = ("c", f["cluster"]) if f["cluster"] and size[f["cluster"]] <= 6 else None
+        fkey = f["path"] if f["kind"] in ("memory", "memory-index") else None
+        host = None if args.all else (seen_cluster.get(key) if key else None) or (seen_file.get(fkey) if fkey else None)
+        if host is not None:
+            host["more"].append(f)
+            continue
+        f["more"] = []
+        entries.append(f)
+        if key:
+            seen_cluster[key] = f
+        if fkey:
+            seen_file[fkey] = f
+    shown = entries if not args.top else entries[:args.top]
+
+    print(f"\n== global config: {len(glob)} candidate lines, {len(entries)} distinct rules, best first ==")
+    for f in shown:
         mark = "!!" if f["tier"] == 1 and not f["flags"]["has_exception"] else "  "
         extra = []
-        if f["cluster"]:
+        if f["cluster"] and size[f["cluster"]] <= 6:
             extra.append(f"cluster#{f['cluster']}")
         if f["age_days"] is not None:
             extra.append(f"{f['age_days']}d old")
         if f["topic"]:
             extra.append("topic")
+        if f.get("mem_type"):
+            extra.append(f"memory:{f['mem_type']}")
         print(f"  {mark} [{f['score']:>2}] {short(f['path'])}:{f['line']}  "
               f"[{fmt_flags(f['flags'])}] {' '.join(extra)}")
         print(f"        {f['text']}")
+        if f["more"]:
+            where = ", ".join(f"{short(m['path']).rsplit('/', 1)[-1]}:{m['line']}" for m in f["more"][:4])
+            print(f"        + {len(f['more'])} more line(s) of the same rule/file: {where}"
+                  + (" …" if len(f["more"]) > 4 else ""))
+    if len(entries) > len(shown):
+        print(f"  … {len(entries) - len(shown)} lower-ranked rules not shown (--top 0 lists all).")
 
     by_file = {}
     for f in proj:

@@ -163,6 +163,12 @@ def scanner_suite(today, case_fn=None):
         in_top5 = [f["text"][:50] for f in top5 if any(k in f["text"] for k in healthy_keys)]
         check("top 5 holds no healthy or authored text", not in_top5, "found=%s" % in_top5)
 
+        # the readable report: repeats collapse, the list is capped, facts are kept out of it
+        txt = run([sys.executable, "-I", str(SCRIPTS / "find_dogmas.py"), "--top", "5"], home=tmp)
+        shown = [l for l in txt.stdout.splitlines() if re.match(r"^\s+(?:!!|  )\s*\[\s*-?\d+\]", l)]
+        check("text report prints a distinct-rules count", "distinct rules" in txt.stdout)
+        check("--top caps the global list", 0 < len(shown) <= 5, "shown=%d" % len(shown))
+
         metrics = {
             "candidates": len(cand),
             "recall": len(found) / len(cand) if cand else 1.0,
@@ -234,6 +240,9 @@ def page_suite():
             check("unknown suggestion falls back to 'review'", items[-1]["suggested"] == "review")
             check("hostile text survives intact", items[0]["rule"] == hostile)
             check("English strings selected", data["t"]["keep"] == "Keep")
+            check("both views and the clean section are in the page",
+                  'id="deck"' in html and 'data-v="deck"' in html and 'data-v="list"' in html
+                  and data["t"].get("cleanTitle") and data["t"].get("viewDeck"))
         check("only the one real </script> in the page", html.count("</script>") == 1,
               "count=%d" % html.count("</script>"))
         check("title is HTML-escaped", "<b>t</b>" not in html and "&lt;b&gt;t&lt;/b&gt;" in html)
@@ -271,14 +280,14 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--gate-holdout", action="store_true",
                     help="fail the run when the holdout suite misses a candidate")
-    ap.add_argument("--suite", choices=["scanner", "holdout", "holdout2", "holdout3", "holdout4", "page", "all"], default="all")
+    ap.add_argument("--suite", choices=["scanner", "holdout", "holdout2", "holdout3", "holdout4", "holdout5", "holdout6", "page", "all"], default="all")
     args = ap.parse_args()
 
     today = date.today()
     out = {}
     failed = []
 
-    for name, fn in (("scanner", None), ("holdout", corpus.holdout), ("holdout2", corpus.holdout2), ("holdout3", corpus.holdout3), ("holdout4", corpus.holdout4)):
+    for name, fn in (("scanner", None), ("holdout", corpus.holdout), ("holdout2", corpus.holdout2), ("holdout3", corpus.holdout3), ("holdout4", corpus.holdout4), ("holdout5", corpus.holdout5), ("holdout6", corpus.holdout6)):
         if args.suite not in (name, "all"):
             continue
         s, rows = scanner_suite(today, fn)
@@ -319,7 +328,7 @@ def main():
         print(json.dumps(out, indent=2, ensure_ascii=False))
         return 1 if failed else 0
 
-    for name in ("scanner", "holdout", "holdout2", "holdout3", "holdout4"):
+    for name in ("scanner", "holdout", "holdout2", "holdout3", "holdout4", "holdout5", "holdout6"):
         rows = out.pop("_rows_" + name, [])
         if name not in out or "metrics" not in out[name]:
             continue

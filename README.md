@@ -81,16 +81,19 @@ scan  ->  triage  ->  review page  ->  apply
 **1. Scan.** [`find_dogmas.py`](skills/undecree/scripts/find_dogmas.py) walks the config of every harness it finds under `$HOME` and ranks the lines.
 
 ```text
-$ python3 skills/undecree/scripts/find_dogmas.py
+$ python3 skills/undecree/scripts/find_dogmas.py --top 6
 Harnesses found: claude-code, codex, cursor, devin, gemini, opencode, windsurf
 
-== global config: 39 candidates, best first ==
+== global config: 38 candidate lines, 33 distinct rules, best first ==
   !! [13] ~/.claude/CLAUDE.md:85  [date:Y reason:Y exc:- scope?:-] 120d old topic
         - **Update 2026-07-27:** the user no longer has GPT access. Do not plan GPT runs.
      [12] ~/.claude/CLAUDE.md:73  [date:- reason:- exc:- scope?:Y] cluster#1 topic
         - Use Haiku for all subagents while credits are low.
-  !! [10] ~/.claude/CLAUDE.md:5   [date:- reason:Y exc:- scope?:Y] cluster#2 topic
-        - Do not use Claude Opus for council, sol-loop, or any other subagent. This is a cost limit.
+        + 1 more line(s) of the same rule/file: agent-test-budget.md:5
+  !! [11] ~/.claude/projects/-Users-x-app/memory/no-opus.md:9  [date:- reason:- exc:- scope?:Y] cluster#2 topic
+        Don't spawn Opus subagents or recommend Opus for delegated tasks.
+        + 3 more line(s) of the same rule/file: CLAUDE.md:5, MEMORY.md:5, no-opus.md:5
+  … 27 lower-ranked rules not shown (--top 0 lists all).
 ```
 
 (That output is from the synthetic home directory the [evals](#evals) build, not from anyone's real config.)
@@ -101,6 +104,8 @@ Harnesses found: claude-code, codex, cursor, devin, gemini, opencode, windsurf
 | `!!` | An absolute with no exception in its own lines. |
 | signals | `ban` (never, don't, avoid, prohibido), `absolute` (always, only, must, limits), `temporal` (the rule carries its origin: "for now", "I'm tired", "credits are low", "no longer"). |
 | `cluster#N` | The same rule restated in several files. One decision. |
+| `+ N more` | Other lines of the same rule, or of the same memory file, collapsed under the best-ranked one. |
+| `memory:feedback` | The memory file's own `type`. `user` and `reference` memories are facts and rank lower. |
 | `date` `reason` `exc` `scope` | What the line itself carries. Read from the line and its continuation lines, not the whole file. |
 
 **2. Triage.** The agent opens the top candidates and reads around them. It writes `items.json`: one card per rule, a verdict, a suggested action, a proposed rewrite and the "if you delete it" outcome. Healthy rules go to a separate list and never get a card. See the [schema](skills/undecree/SKILL.md#itemsjson).
@@ -187,16 +192,26 @@ The scanner is regex and heuristics, so it has a test suite that says what it ca
 - **The review page** with hostile input: `</script>` and template placeholders inside rule text, duplicate ids, unknown values, healthy items, language selection, and (when Node is installed) a syntax check of the page's JavaScript.
 
 ```bash
-python3 skills/undecree/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|page] [--gate-holdout]
+python3 skills/undecree/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|holdout5|holdout6|page] [--gate-holdout]
 ```
 
 CI runs it on Python 3.10 and 3.13 (the scripts also run on 3.9, which is what macOS ships). The main corpus gates; so do the held-out rounds, once folded in.
 
-**What the numbers mean.** The held-out rounds are the honest part. Each one was written fresh, run against the scanner as it was, and only then were the misses folded into the patterns. On phrasing the scanner had not seen, the first run caught about two thirds of the dogmas (65–70% lexical recall). After folding the misses in, that round, like the others, scores 100%, but a round you tuned against measures nothing about new phrasing. So the suite keeps getting new rounds, and the skill is built around that limit:
+**What the numbers mean.** The held-out rounds are the honest part. Each one was written fresh, run against the scanner as it was, and only then were the misses folded into the patterns. A round you tuned against measures nothing about new phrasing, so the suite keeps getting new rounds. First runs, before any change:
 
-- Global config is never judged from pattern hits alone. The agent reads it whole, and `--unflagged` lists every line no pattern matched ("Speak like a pirate."). Global coverage is 100% on every round because of it.
-- Project rule files have no such safety net (only tier-1 bans and risky topics are shown), and project recall on unseen phrasing was about 50%.
-- Descriptive text still produces false positives (46.7% on the dirtiest round), though ranked well below real candidates (AUC 0.95).
+| Round | Lexical recall | False positives | What it probed |
+|---|---|---|---|
+| 3 | ~65–70% | 46.7% | descriptive text |
+| 4 | ~65–70% | 8.3% | mixed phrasing |
+| 5 | 75.9% | 75.0% | project files, memory types, `Why:` lines, preambles |
+| 6 | 71.4% | 14.3% | dogmas phrased as statements |
+
+After folding in, every round scores 100% recall (0–13% false positives), but expect the next fresh round to land near 70% again. The skill is built around that limit:
+
+- Global config is never judged from pattern hits alone. The agent reads it whole, and `--unflagged` lists every line no pattern matched ("Speak like a pirate."), plus the lines hidden as plain facts. Global coverage is 100% on every round because of it.
+- Lines that read as facts about a system ("The cron never runs on weekends.", "Only two engineers have prod access.") are kept out of the ranked list unless they carry a prohibition or a risky topic (models, cost, credits). That cut false positives, and it is the riskiest heuristic: round 6 was written to attack it.
+- Project rule files have no unflagged safety net (only tier-1 bans and risky topics are shown there). Project recall on unseen phrasing was ~50% in early rounds, then 88% in round 5 and 100% in round 6.
+- Memory files carry a `type`. `user` and `reference` memories are facts and rank lower; `feedback` ranks higher.
 
 When you change the scanner, run the evals before and after, and write a new round before trusting the numbers.
 

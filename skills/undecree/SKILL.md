@@ -31,21 +31,22 @@ A directive should carry three things. Missing any is a red flag:
 ## Step 1 — scan
 
 ```bash
-python3 -I <skill-dir>/scripts/find_dogmas.py [--project PATH]... [--json] [--verbose] [--unflagged | --unflagged-all] [--include-skills] [--all-tiers]
+python3 -I <skill-dir>/scripts/find_dogmas.py [--project PATH]... [--json] [--top N] [--all] [--verbose] [--unflagged | --unflagged-all] [--include-skills] [--all-tiers]
 ```
 
 Covers `~/.claude`, `.codex`, `.cursor`, `.codeium`, `.gemini`, `.config/devin`, `.config/opencode`, `.agents`, plus a project sweep of `$HOME` (depth 4). Output is ranked by a suspicion score:
 
-- Global config is listed line by line, best first. Project rule files are summarized per file (`--verbose` for every line).
+- Global config is listed best first, **one entry per rule**: the same rule restated in other files (a small cluster), or several hits inside one memory file, collapse into the best line with the rest listed under it. `--top N` caps the list (default 40, `0` = all), `--all` turns the collapsing off, `--json` always has every line. Project rule files are summarized per file (`--verbose` for every line).
 - `signals` say why a line was flagged: `ban` (never / don't / avoid / prohibido), `absolute` (always / only / must / limits like "under 20 words"), `temporal` (the rule carries its origin: "for now", "I'm tired", "credits are low", "no longer").
 - `!!` = absolute with no exception in its own lines. `[N]` = score. Global config, model/cost words, no exception, short lines and old dates raise it. Descriptive text ("The server never restarts") and lasting reasons (security, policy, CI) lower it.
-- `cluster#N` = the same rule restated in several files. Fix them as one item.
+- `cluster#N` = the same rule restated in several files. Fix them as one item. A cluster of more than 6 lines is several rules chained together by shared words, so it is not tagged or collapsed.
+- `memory:feedback|user|reference|project` is the memory file's own `type`. `user` and `reference` memories are facts, so they rank lower; `feedback` ranks higher. A `**Why:**` line explains a rule written elsewhere in the file, so it ranks lower than the rule.
 - Flags come from the line and its continuation lines, not the whole file. They are hints, not verdicts.
 
 **The patterns are a ranking aid, not a guarantee.** On phrasing they had never seen, they caught about two thirds of the dogmas (see Evals). So global config is never judged from the pattern hits alone:
 
 - Read `~/.claude/CLAUDE.md`, `AGENTS.md`, `GEMINI.md` and each `MEMORY.md` index whole. They are short.
-- Run with `--unflagged` to list the lines in those files that no pattern matched ("Speak like a pirate."). `--unflagged-all` adds memory bodies.
+- Run with `--unflagged` to list the lines in those files that no pattern matched ("Speak like a pirate."). It also holds the lines the scanner judged to be plain facts ("The cron never runs on weekends.") and the file's preamble, which are kept out of the ranked list. `--unflagged-all` adds memory bodies.
 - Project rule files have no such safety net. Only tier-1 hits and risky topics are shown there.
 
 ## Step 2 — triage (your judgment)
@@ -141,13 +142,13 @@ Good: `Default to Sonnet/Haiku for subagents — user cost limit, 2026-10-22. Op
 ## Evals
 
 ```bash
-python3 <skill-dir>/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|page] [--gate-holdout] [--json]
+python3 <skill-dir>/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|holdout5|holdout6|page] [--gate-holdout] [--json]
 ```
 
 `evals/corpus.py` builds a fake `$HOME` with labelled lines (dates are relative to today, so it never goes stale) and runs the real scanner on it. Labels: `candidate` (must be found), `low` (healthy or authored text, must rank below candidates), `clean` (ordinary text, counts as a false positive if flagged), `excluded` (fences, comments, skills, `node_modules`, too deep; must not appear), `hard` (no marker at all, reported only).
 
 Metrics: lexical **recall**, **global coverage** (pattern hits plus `--unflagged` lines), recall inside the top 40, project recall, **ranking** (candidate above healthy and above clean), exclusion leaks, false-positive rate, cluster and line-level flag checks, and a `page` suite that feeds hostile input to `make_review.py` and checks the HTML.
 
-- `scanner` is the regression suite and gates the exit code. `holdout` to `holdout4` were each written fresh, then folded into the scanner after a failing round. Once folded, a round is regression too (`--gate-holdout`), so **write a new round before trusting the numbers**: a round is only an honest estimate before it is tuned against.
+- `scanner` is the regression suite and gates the exit code. `holdout` to `holdout6` were each written fresh, then folded into the scanner after a failing round. Once folded, a round is regression too (`--gate-holdout`), so **write a new round before trusting the numbers**: a round is only an honest estimate before it is tuned against.
 - When the scanner changes, run the evals before and after. A fix for one phrasing that raises false positives shows up in the `clean` cases.
 

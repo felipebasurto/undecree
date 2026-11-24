@@ -144,7 +144,10 @@ def cases(today):
 
 
 def build(home: Path, today, case_fn=None):
-    """Write the fake $HOME. Returns the case list."""
+    """Write the fake $HOME. Returns the case list.
+
+    A case may set `pre` (put the line right under the H1, as file preamble) or
+    `mtype` (the file is a memory file with that frontmatter type)."""
     cs = (case_fn or cases)(today)
     files = {}
     for c in cs:
@@ -153,10 +156,19 @@ def build(home: Path, today, case_fn=None):
         p = home / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         parts = []
+        mtype = next((c["mtype"] for c in group if c.get("mtype")), None)
         if rel.endswith(".mdc"):
             parts.append("---\ndescription: fixture\nalwaysApply: true\n---\n")
-        parts.append("# Notes\n\nPlain context line with nothing to flag.\n")
+        elif mtype:
+            parts.append("---\nname: fixture\ndescription: fixture memory\nmetadata:\n  type: %s\n---\n" % mtype)
+        parts.append("# Notes\n")
         for c in group:
+            if c.get("pre"):
+                parts.append(c["text"] + "\n")
+        parts.append("Plain context line with nothing to flag.\n")
+        for c in group:
+            if c.get("pre"):
+                continue
             parts.append(c["text"] + "\n")
             parts.append("Some ordinary text between rules.\n")
         p.write_text("\n".join(parts), encoding="utf-8")
@@ -405,4 +417,111 @@ def holdout4(today):
         dict(id="n4-finance", file=g, label=N, text="- Budget approvals go through Finance."),
         dict(id="n4-mem-fact", file=m + "api.md", label=N, text="The sync job runs at 03:00 UTC."),
         dict(id="n4-proj-fact", file=p, label=N, text="- The Xcode project is generated from `project.yml`."),
+    ]
+
+
+def holdout5(today):
+    """Round 5. Written after round 4 was folded in, and not tuned against until
+    its first run. Adds project files (the weak spot), memory types, "Why:" lines
+    and file preambles."""
+    t = lambda n: d(today, n)
+    C, L, N = "candidate", "low", "clean"
+    g = ".claude/CLAUDE.md"
+    m = ".claude/projects/-Users-x-shop/memory/"
+    p = "Proyectos/shop/CLAUDE.md"
+    q = "Proyectos/shop/.github/copilot-instructions.md"
+    return [
+        dict(id="r5-zero-chatter", file=g, label=C, text="- Zero chatter, just the diff."),
+        dict(id="r5-whatever", file=g, label=C, text="- Whatever you do, don't open a browser."),
+        dict(id="r5-no-more-agents", file=g, label=C, text="- I don't want any more subagents today."),
+        dict(id="r5-not-a-single", file=g, label=C, text="- Not a single comment in the code, please."),
+        dict(id="r5-no-condition", file=g, label=C, text="- Under no condition touch prod."),
+        dict(id="r5-cheaper-until", file=g, label=C, text="- Cheaper models only until the invoice clears."),
+        dict(id="r5-dotfiles", file=g, label=C, text="- Never touch my dotfiles. Seriously."),
+        dict(id="r5-stay-away", file=g, label=C, text="- Stay away from GraphQL."),
+        dict(id="r5-under-words", file=g, label=C, text="- Reply in under 15 words."),
+        dict(id="r5-mobile", file=g, label=C, text="- Keep answers to one sentence while I'm on mobile."),
+        dict(id="r5-no-questions", file=g, label=C, text="- You must never ask clarifying questions."),
+        dict(id="r5-gemini-gone", file=g, label=C, text="- Gemini is no longer part of the stack."),
+        dict(id="r5-main-only", file=g, label=C, text="- All commits go straight to main, no branches."),
+        dict(id="r5-delve", file=g, label=C, text="- Don't ever use the word 'delve'."),
+        dict(id="r5-es-nunca-mas", file=g, label=C, text="- Nunca más uses Cursor."),
+        dict(id="r5-es-prohibido", file=g, label=C, text="- Prohibido tocar producción hasta nuevo aviso."),
+        dict(id="r5-es-decide", file=g, label=C, text="- No me preguntes, decide tú."),
+        dict(id="r5-es-cero-gasto", file=g, label=C, text="- Hasta que acabe el trimestre, cero gastos en agentes."),
+        dict(id="r5-mem-one-agent", file=m + "budget.md", mtype="feedback", label=C,
+             text="**How to apply:** one agent at a time until the credit reset."),
+        dict(id="r5-mem-stop-sonnet", file=m + "review.md", mtype="feedback", label=C,
+             text="The user said \"stop using sonnet for review, it misses things\" (%s)." % t(14)),
+        dict(id="r5-mem-index", file=m + "MEMORY.md", label=C,
+             text="- [No browsers](no-browser.md) \u2014 never open a browser unprompted"),
+        # project files: the weak spot
+        dict(id="r5-p-budget", file=p, label=C, text="- We're low on budget, don't run the e2e suite."),
+        dict(id="r5-p-redesign", file=p, label=C, text="- Until the redesign lands, no new pages."),
+        dict(id="r5-p-tests", file=p, label=C, text="- Stop adding tests, the owner hates them."),
+        dict(id="r5-p-billing", file=p, label=C, text="- Don't touch the billing module, the founder is rewriting it."),
+        dict(id="r5-p-haiku", file=p, label=C, text="- Use only Haiku in this repo."),
+        dict(id="r5-p-tailwind", file=p, label=C, text="- No Tailwind. The owner changed his mind."),
+        dict(id="r5-p-lint", file=p, label=C, text="- Skip linting for now."),
+        dict(id="r5-p-refactor", file=q, label=C, text="- Please do not refactor anything this month."),
+        # low: must rank below the candidates
+        dict(id="r5-low-secrets", file=p, label=L, text="- Never commit secrets (security policy)."),
+        dict(id="r5-low-prod", file=p, label=L, text="- Only admins can run migrations in production (compliance)."),
+        dict(id="r5-low-ref", file=m + "urls.md", mtype="reference", label=L,
+             text="Never share the staging URL outside the team."),
+        dict(id="r5-low-user", file=m + "profile.md", mtype="user", label=L,
+             text="The user doesn't like meetings before 10am and never answers email on weekends."),
+        dict(id="r5-low-why", file=m + "budget.md", mtype="feedback", label=L,
+             text="**Why:** the user never wants to see raw logs in answers, they got burned twice."),
+        # clean: must not be flagged
+        dict(id="n5-cron", file=g, label=N, text="- The cron never runs on weekends."),
+        dict(id="n5-legacy", file=g, label=N, text="- Nobody uses the legacy admin panel anymore."),
+        dict(id="n5-two-eng", file=g, label=N, text="- Only two engineers have prod access."),
+        dict(id="n5-docker", file=g, label=N, text="- The build doesn't need Docker."),
+        dict(id="n5-always-on", file=g, label=N, text="- Always-on instances cost more than spot ones."),
+        dict(id="n5-owner", file=g, label=N, text="- This service is no longer maintained by the infra team; see `docs/ownership.md`."),
+        dict(id="n5-preamble", file=g, label=N, pre=True,
+             text="Always applied. Overrides the defaults. Applies to new sessions."),
+        dict(id="n5-mem-ref", file=m + "urls.md", mtype="reference", label=N,
+             text="The staging dashboard lives at https://staging.example.com/ops and never needs a login."),
+    ]
+
+
+def holdout6(today):
+    """Round 6. Written after round 5 was folded in; run once before any change.
+    Aimed at the riskiest heuristic added in round 5: hiding lines that read as
+    facts. Dogmas that are phrased as statements must still be found."""
+    t = lambda n: d(today, n)
+    C, L, N = "candidate", "low", "clean"
+    g = ".claude/CLAUDE.md"
+    m = ".claude/projects/-Users-x-site/memory/"
+    p = "Proyectos/site/AGENTS.md"
+    return [
+        dict(id="r6-docs-off", file=g, label=C, text="- Documentation is off the table this quarter."),
+        dict(id="r6-refactors-oos", file=g, label=C, text="- Refactors are out of scope until v2."),
+        dict(id="r6-comments-banned", file=g, label=C, text="- Comments are banned in this setup."),
+        dict(id="r6-tests-optional", file=g, label=C, text="- Tests are optional for now."),
+        dict(id="r6-user-no-tests", file=g, label=C, text="- The user doesn't want tests written today."),
+        dict(id="r6-nobody-deps", file=g, label=C, text="- Nobody should add dependencies until the audit ends."),
+        dict(id="r6-every-short", file=g, label=C, text="- Every answer must be two lines max."),
+        dict(id="r6-all-haiku", file=g, label=C, text="- All delegated work runs on Haiku."),
+        dict(id="r6-es-sin-prisa", file=g, label=C, text="- Sin tests por ahora, tengo prisa."),
+        dict(id="r6-es-solo-codigo", file=g, label=C, text="- Quiero solo el diff, nada de explicaciones."),
+        dict(id="r6-mem-hate", file=m + "style.md", mtype="feedback", label=C,
+             text="The user hates bullet lists in replies (%s)." % t(9)),
+        dict(id="r6-mem-index", file=m + "MEMORY.md", label=C,
+             text="- [No emojis](emojis.md) \u2014 the user finds them childish, none anywhere"),
+        dict(id="r6-p-nofunds", file=p, label=C, text="- No money for paid APIs this month, mock everything."),
+        dict(id="r6-p-owner", file=p, label=C, text="- The owner is against dark mode, so don't build it."),
+        dict(id="r6-low-compliance", file=p, label=L, text="- Never store card numbers (PCI compliance)."),
+        dict(id="r6-low-ref", file=m + "infra.md", mtype="reference", label=L,
+             text="Never restart the primary database without a snapshot."),
+        dict(id="n6-fact-runs", file=g, label=N, text="- The nightly job runs at 02:00 and never touches user data."),
+        dict(id="n6-fact-only", file=g, label=N, text="- Only the payments service writes to the ledger."),
+        dict(id="n6-fact-always", file=g, label=N, text="- The cache is always warm after a deploy."),
+        dict(id="n6-fact-nobody", file=g, label=N, text="- Nobody owns the legacy importer right now."),
+        dict(id="n6-fact-not-allowed", file=g, label=N, text="- The API gateway does not allow requests over 10 MB."),
+        dict(id="n6-fact-no-longer", file=g, label=N, text="- The staging cluster no longer exists; use preview environments."),
+        dict(id="n6-mem-fact", file=m + "infra.md", mtype="reference", label=N,
+             text="The primary database is Postgres 16 and never sleeps."),
     ]
