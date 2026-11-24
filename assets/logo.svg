@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="undecree">
+  <defs>
+    <linearGradient id="ud-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#82e6b0"/><stop offset=".6" stop-color="#22b873"/><stop offset="1" stop-color="#0d8a52"/>
+    </linearGradient>
+    <radialGradient id="ud-glow" cx=".3" cy=".18" r=".55">
+      <stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ud-rimtile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset=".4" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".25"/>
+    </linearGradient>
+    <linearGradient id="ud-glassfill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity=".14"/>
+    </linearGradient>
+    <linearGradient id="ud-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity=".75"/>
+    </linearGradient>
+    <filter id="ud-glass" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feGaussianBlur in="inv" stdDeviation="3.5" result="invb"/>
+      <feOffset in="invb" dx="3" dy="4" result="o1"/>
+      <feComposite in="o1" in2="SourceAlpha" operator="in" result="e1"/>
+      <feFlood flood-color="#fff" flood-opacity=".85"/><feComposite in2="e1" operator="in" result="hi1"/>
+      <feOffset in="invb" dx="-3" dy="-4" result="o2"/>
+      <feComposite in="o2" in2="SourceAlpha" operator="in" result="e2"/>
+      <feFlood flood-color="#fff" flood-opacity=".4"/><feComposite in2="e2" operator="in" result="hi2"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="hi1"/><feMergeNode in="hi2"/></feMerge>
+    </filter>
+    <filter id="ud-tileshadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#03301a" flood-opacity=".3"/>
+    </filter>
+    <filter id="ud-lift" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#03301a" flood-opacity=".38"/>
+    </filter>
+  </defs>
+  <path d="M244.0 128.0 L243.9 167.0 L243.6 179.4 L243.1 188.3 L242.4 195.6 L241.5 201.7 L240.4 207.0 L239.1 211.7 L237.5 215.9 L235.7 219.7 L233.7 223.1 L231.5 226.2 L229.0 229.0 L226.2 231.5 L223.1 233.7 L219.7 235.7 L215.9 237.5 L211.7 239.1 L207.0 240.4 L201.7 241.5 L195.6 242.4 L188.3 243.1 L179.4 243.6 L167.0 243.9 L128.0 244.0 L89.0 243.9 L76.6 243.6 L67.7 243.1 L60.4 242.4 L54.3 241.5 L49.0 240.4 L44.3 239.1 L40.1 237.5 L36.3 235.7 L32.9 233.7 L29.8 231.5 L27.0 229.0 L24.5 226.2 L22.3 223.1 L20.3 219.7 L18.5 215.9 L16.9 211.7 L15.6 207.0 L14.5 201.7 L13.6 195.6 L12.9 188.3 L12.4 179.4 L12.1 167.0 L12.0 128.0 L12.1 89.0 L12.4 76.6 L12.9 67.7 L13.6 60.4 L14.5 54.3 L15.6 49.0 L16.9 44.3 L18.5 40.1 L20.3 36.3 L22.3 32.9 L24.5 29.8 L27.0 27.0 L29.8 24.5 L32.9 22.3 L36.3 20.3 L40.1 18.5 L44.3 16.9 L49.0 15.6 L54.3 14.5 L60.4 13.6 L67.7 12.9 L76.6 12.4 L89.0 12.1 L128.0 12.0 L167.0 12.1 L179.4 12.4 L188.3 12.9 L195.6 13.6 L201.7 14.5 L207.0 15.6 L211.7 16.9 L215.9 18.5 L219.7 20.3 L223.1 22.3 L226.2 24.5 L229.0 27.0 L231.5 29.8 L233.7 32.9 L235.7 36.3 L237.5 40.1 L239.1 44.3 L240.4 49.0 L241.5 54.3 L242.4 60.4 L243.1 67.7 L243.6 76.6 L243.9 89.0Z" fill="url(#ud-tile)"/>
+  <path d="M244.0 128.0 L243.9 167.0 L243.6 179.4 L243.1 188.3 L242.4 195.6 L241.5 201.7 L240.4 207.0 L239.1 211.7 L237.5 215.9 L235.7 219.7 L233.7 223.1 L231.5 226.2 L229.0 229.0 L226.2 231.5 L223.1 233.7 L219.7 235.7 L215.9 237.5 L211.7 239.1 L207.0 240.4 L201.7 241.5 L195.6 242.4 L188.3 243.1 L179.4 243.6 L167.0 243.9 L128.0 244.0 L89.0 243.9 L76.6 243.6 L67.7 243.1 L60.4 242.4 L54.3 241.5 L49.0 240.4 L44.3 239.1 L40.1 237.5 L36.3 235.7 L32.9 233.7 L29.8 231.5 L27.0 229.0 L24.5 226.2 L22.3 223.1 L20.3 219.7 L18.5 215.9 L16.9 211.7 L15.6 207.0 L14.5 201.7 L13.6 195.6 L12.9 188.3 L12.4 179.4 L12.1 167.0 L12.0 128.0 L12.1 89.0 L12.4 76.6 L12.9 67.7 L13.6 60.4 L14.5 54.3 L15.6 49.0 L16.9 44.3 L18.5 40.1 L20.3 36.3 L22.3 32.9 L24.5 29.8 L27.0 27.0 L29.8 24.5 L32.9 22.3 L36.3 20.3 L40.1 18.5 L44.3 16.9 L49.0 15.6 L54.3 14.5 L60.4 13.6 L67.7 12.9 L76.6 12.4 L89.0 12.1 L128.0 12.0 L167.0 12.1 L179.4 12.4 L188.3 12.9 L195.6 13.6 L201.7 14.5 L207.0 15.6 L211.7 16.9 L215.9 18.5 L219.7 20.3 L223.1 22.3 L226.2 24.5 L229.0 27.0 L231.5 29.8 L233.7 32.9 L235.7 36.3 L237.5 40.1 L239.1 44.3 L240.4 49.0 L241.5 54.3 L242.4 60.4 L243.1 67.7 L243.6 76.6 L243.9 89.0Z" fill="url(#ud-glow)"/>
+  <path d="M244.0 128.0 L243.9 167.0 L243.6 179.4 L243.1 188.3 L242.4 195.6 L241.5 201.7 L240.4 207.0 L239.1 211.7 L237.5 215.9 L235.7 219.7 L233.7 223.1 L231.5 226.2 L229.0 229.0 L226.2 231.5 L223.1 233.7 L219.7 235.7 L215.9 237.5 L211.7 239.1 L207.0 240.4 L201.7 241.5 L195.6 242.4 L188.3 243.1 L179.4 243.6 L167.0 243.9 L128.0 244.0 L89.0 243.9 L76.6 243.6 L67.7 243.1 L60.4 242.4 L54.3 241.5 L49.0 240.4 L44.3 239.1 L40.1 237.5 L36.3 235.7 L32.9 233.7 L29.8 231.5 L27.0 229.0 L24.5 226.2 L22.3 223.1 L20.3 219.7 L18.5 215.9 L16.9 211.7 L15.6 207.0 L14.5 201.7 L13.6 195.6 L12.9 188.3 L12.4 179.4 L12.1 167.0 L12.0 128.0 L12.1 89.0 L12.4 76.6 L12.9 67.7 L13.6 60.4 L14.5 54.3 L15.6 49.0 L16.9 44.3 L18.5 40.1 L20.3 36.3 L22.3 32.9 L24.5 29.8 L27.0 27.0 L29.8 24.5 L32.9 22.3 L36.3 20.3 L40.1 18.5 L44.3 16.9 L49.0 15.6 L54.3 14.5 L60.4 13.6 L67.7 12.9 L76.6 12.4 L89.0 12.1 L128.0 12.0 L167.0 12.1 L179.4 12.4 L188.3 12.9 L195.6 13.6 L201.7 14.5 L207.0 15.6 L211.7 16.9 L215.9 18.5 L219.7 20.3 L223.1 22.3 L226.2 24.5 L229.0 27.0 L231.5 29.8 L233.7 32.9 L235.7 36.3 L237.5 40.1 L239.1 44.3 L240.4 49.0 L241.5 54.3 L242.4 60.4 L243.1 67.7 L243.6 76.6 L243.9 89.0Z" fill="none" stroke="url(#ud-rimtile)" stroke-width="2"/>
+
+  <g filter="url(#ud-lift)">
+    <rect x="48" y="158" width="160" height="56" rx="18" fill="#fff" fill-opacity=".14"/>
+    <rect x="48" y="150" width="160" height="56" rx="18" fill="url(#ud-glassfill)" stroke="url(#ud-rim)" stroke-width="1.6" filter="url(#ud-glass)"/>
+    <g transform="translate(112 104) rotate(28)">
+      <path d="M-7 -24 V-75 a7 7 0 0 1 14 0 V-24 Z" fill="url(#ud-glassfill)" stroke="url(#ud-rim)" stroke-width="1.6" filter="url(#ud-glass)"/>
+      <rect x="-44" y="-24" width="88" height="48" rx="17" fill="url(#ud-glassfill)" stroke="url(#ud-rim)" stroke-width="1.6" filter="url(#ud-glass)"/>
+    </g>
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M142 151 L134 165 L148 176 L136 190 L146 205" stroke="#03301a" stroke-opacity=".28" stroke-width="5"/>
+    <path d="M142 151 L134 165 L148 176 L136 190 L146 205" stroke="#fff" stroke-opacity=".95" stroke-width="2"/>
+  </g>
+</svg>

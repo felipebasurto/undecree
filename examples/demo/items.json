@@ -1,0 +1,86 @@
+{
+  "title": "demo",
+  "lang": "en",
+  "items": [
+    {
+      "id": 1,
+      "file": "~/.claude/CLAUDE.md",
+      "line": 7,
+      "verdict": "fossil",
+      "suggested": "rescope",
+      "rule": "- Do not use Claude Opus for council, sol-loop, or any other subagent. This is a cost limit.",
+      "context": "A low-credits comment became a universal ban with no exception. It is repeated in two more files, and the index loads first.",
+      "outcome": "Council, sol-loop and subagents may pick Opus by default again, and spend goes up (the rule started as a cost limit). In return you stop fighting agents that refuse Opus even when you ask for it. The other two files repeat the rule: if you only delete CLAUDE.md, the memory index keeps applying it.",
+      "proposal": "- Default to Sonnet/Haiku for council, sol-loop and other subagents (user cost limit, 2026-10-22).\n  Exception: use Opus when the user explicitly asks for it or names it.",
+      "also": [
+        {
+          "file": "~/.claude/projects/-Users-me-app/memory/MEMORY.md",
+          "line": 6,
+          "proposal": "- [Sonnet by default](no-opus-budget.md) Sonnet/Haiku for subagents; Opus only when you ask (cost limit, 2026-10-22)"
+        },
+        {
+          "file": "~/.claude/projects/-Users-me-app/memory/no-opus-budget.md",
+          "line": 3,
+          "proposal": "description: \"Default Sonnet/Haiku for subagents, user cost limit (2026-10-22); Opus only when the user asks\""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "file": "~/.claude/projects/-Users-me-app/memory/no-fable-model.md",
+      "line": 11,
+      "verdict": "fossil",
+      "suggested": "rescope",
+      "rule": "Don't use `fable` as a model for Agent/Workflow runs (including pstack arena/architect runners). Use opus or sonnet instead.",
+      "context": "Same as Opus: \"it's expensive\" (2026-10-15) became an absolute ban.",
+      "outcome": "Agent and Workflow runners may pick fable without telling you, and fable is the most expensive model: spend can climb fast. If you just delete it, there is also no record of why you avoided fable.",
+      "proposal": "Don't use `fable` for subagents/workflows by default (user cost limit, 2026-10-15). Prefer sonnet/haiku; opus or fable when the user asks or budget allows."
+    },
+    {
+      "id": 3,
+      "file": "~/.claude/projects/-Users-me-app/memory/devin-verify-then-merge.md",
+      "line": 10,
+      "verdict": "stale",
+      "suggested": "review",
+      "rule": "**Update 2026-10-22:** the user no longer has Devin access. Do not plan or launch Devin cloud sessions.",
+      "context": "The user uses Devin daily today. It may refer to another product or account: confirm before touching it.",
+      "outcome": "The agent will plan and launch Devin cloud sessions again. That is what you want if you have access today. If the rule was about another account or product, it will waste time on sessions that fail. Confirm which one it was first."
+    },
+    {
+      "id": 4,
+      "file": "~/.claude/projects/-Users-me-app/memory/MEMORY.md",
+      "line": 8,
+      "verdict": "under-scoped",
+      "suggested": "rescope",
+      "rule": "- [Agent/test budget](agent-test-budget.md) — never rerun full suite per agent; announce cost, one agent at a time",
+      "context": "Another \"I'm running out of credits\" (2026-10-23) that stayed as a permanent rule with no review date.",
+      "outcome": "Agents will rerun the full suite per agent, several at once, without announcing the cost. Tests and tokens multiply, which is exactly what you wanted to stop while credits were low. Rewriting keeps the brake and gives it a review date.",
+      "proposal": "- [Agent/test budget](agent-test-budget.md) by default one full suite per batch, and announce the cost before each round (credits low, 2026-10-23); lifted when you say budget is fine",
+      "also": [
+        {
+          "file": "~/.claude/projects/-Users-me-app/memory/agent-test-budget.md",
+          "line": 3,
+          "proposal": "description: \"Default while credits are low (2026-10-23): one full suite per batch, announce cost before each round; lifted when the user says budget is fine\""
+        }
+      ]
+    }
+  ],
+  "clean": [
+    {
+      "file": "~/.claude/CLAUDE.md",
+      "line": 5,
+      "rule": "- **council members:** `claude-sonnet-5-5` and `claude-haiku-5-5`, both at `high` effort. These are the members the user named, so the skill's default panel … do not apply.",
+      "note": "Configuration you chose, with a reason: \"these are the members the user named\"."
+    },
+    {
+      "file": "~/.claude/projects/-Users-me-api/memory/legacy-rules-not-binding.md",
+      "line": 8,
+      "rule": "The user said (2026-11-03) to forget all principles, hard requirements and conventions of the original repo (AGENTS.md rules, boundary-test constraints, …).",
+      "note": "It has a date, a reason and a limit: the new guardrails still apply and unrelated files are not deleted."
+    },
+    {
+      "file": "~/.codex/AGENTS.md · ~/.gemini/GEMINI.md",
+      "note": "Empty: nothing to review."
+    }
+  ]
+}

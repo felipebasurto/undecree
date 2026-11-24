@@ -1,0 +1,6 @@
+interface:
+  display_name: "undecree"
+  short_description: "Find one-off comments that became permanent agent rules, then keep, rewrite or delete them"
+  default_prompt: "Run undecree on my agent config"
+policy:
+  allow_implicit_invocation: true

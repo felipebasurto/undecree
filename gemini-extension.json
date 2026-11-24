@@ -1,0 +1,5 @@
+{
+  "name": "undecree",
+  "version": "1.0.0",
+  "description": "Find agent rules that were one-off comments, and keep, rewrite or delete each one in a review page."
+}

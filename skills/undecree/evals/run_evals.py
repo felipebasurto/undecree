@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+"""Evals for the undecree scripts. Stdlib only, Python 3.9+.
+
+    python3 evals/run_evals.py            # run everything, print the report
+    python3 evals/run_evals.py --json     # machine-readable result
+    python3 evals/run_evals.py -v         # list every case, not only failures
+
+Suites
+  scanner   build a fake $HOME from corpus.py, run find_dogmas.py --json on it and
+            score detection (recall), ranking (candidates above healthy text),
+            exclusions (fences, skills, node_modules, depth), clusters, line-level
+            flags and age.
+  page      feed make_review.py hostile and edge-case items.json files and check
+            the generated HTML (payload integrity, healthy folding, ids, i18n,
+            syntax of the embedded script).
+
+Exit code 1 if a threshold fails, so it can gate a change.
+"""
+
+import argparse
+import itertools
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import date
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SCRIPTS = HERE.parent / "scripts"
+sys.path.insert(0, str(HERE))
+import corpus  # noqa: E402
+
+TOP_K = 40          # how many global findings the agent is expected to read
+MIN_RECALL = 1.0    # every labelled dogma must be found
+MIN_TOP_RECALL = 1.0
+MIN_AUC = 0.9       # candidates should outrank healthy text (main corpus only)
+MIN_HOLDOUT_RECALL = 0.85   # folded holdout rounds are regression suites
+
+
+def run(cmd, home=None, **kw):
+    env = dict(os.environ)
+    if home:
+        env["HOME"] = str(home)
+    return subprocess.run(cmd, env=env, capture_output=True, text=True, **kw)
+
+
+# --------------------------------------------------------------------------- scanner
+
+def match_key(case):
+    if case.get("match"):
+        return case["match"]
+    first = case["text"].splitlines()[0].strip()
+    return first[2:] if first.startswith("- ") else first
+
+
+def find(findings, case):
+    key = match_key(case)
+    hits = [f for f in findings if f["path"].endswith(case["file"]) and key in f["text"]]
+    return hits[0] if hits else None
+
+
+def scanner_suite(today, case_fn=None):
+    tmp = Path(tempfile.mkdtemp(prefix="undecree-eval-"))
+    try:
+        cases = corpus.build(tmp, today, case_fn)
+        res = run([sys.executable, "-I", str(SCRIPTS / "find_dogmas.py"), "--json"], home=tmp)
+        if res.returncode != 0:
+            return {"error": res.stderr[-800:]}, []
+        data = json.loads(res.stdout)
+        findings = data["findings"]
+        unflagged = data.get("unflagged", [])
+        # rank = position in the order the agent reads: global first, then project
+        glob = [f for f in findings if f["harness"] != "project"]
+        glob.sort(key=lambda f: -f.get("score", 0))
+        rank = {id(f): i + 1 for i, f in enumerate(glob)}
+
+        rows = []
+        for c in cases:
+            f = find(findings, c)
+            u = find(unflagged, c) if not f else None
+            rows.append({"case": c, "finding": f, "unflagged": bool(u),
+                         "rank": rank.get(id(f)) if f else None})
+
+        cand = [r for r in rows if r["case"]["label"] == "candidate"]
+        clean_rows = [r for r in rows if r["case"]["label"] == "clean"]
+        low = [r for r in rows if r["case"]["label"] == "low"]
+        excl = [r for r in rows if r["case"]["label"] == "excluded"]
+
+        found = [r for r in cand if r["finding"]]
+        covered = [r for r in cand if r["finding"] or r["unflagged"]]
+        glob_files = lambda r: not r["case"]["file"].startswith("Proyectos/")
+        glob_all = [r for r in cand + [x for x in rows if x["case"]["label"] == "hard"] if glob_files(r)]
+        glob_covered = [r for r in glob_all if r["finding"] or r["unflagged"]]
+        glob_cand = [r for r in cand if r["finding"] and r["finding"]["harness"] != "project"]
+        top = [r for r in glob_cand if r["rank"] <= TOP_K]
+        proj_cand = [r for r in cand if r["case"]["file"].startswith("Proyectos/")]
+        proj_found = [r for r in proj_cand if r["finding"]]
+
+        # pairwise ranking: candidate score vs healthy score, same scope
+        pairs = good = 0
+        for a, b in itertools.product(cand, low):
+            fa, fb = a["finding"], b["finding"]
+            if not fa or not fb:
+                continue
+            if (fa["harness"] == "project") != (fb["harness"] == "project"):
+                continue
+            pairs += 1
+            good += 1 if fa["score"] > fb["score"] else (0.5 if fa["score"] == fb["score"] else 0)
+        auc = good / pairs if pairs else 1.0
+
+        pairs2 = good2 = 0
+        for a, b in itertools.product(cand, clean_rows):
+            fa, fb = a["finding"], b["finding"]
+            if not fa or not fb:
+                continue
+            pairs2 += 1
+            good2 += 1 if fa["score"] > fb["score"] else (0.5 if fa["score"] == fb["score"] else 0)
+        clean_auc = good2 / pairs2 if pairs2 else 1.0
+        leaks = [r for r in excl if r["finding"]]
+        hard = [r for r in rows if r["case"]["label"] == "hard"]
+        clean = [r for r in rows if r["case"]["label"] == "clean"]
+        fp = [r for r in clean if r["finding"]]
+
+        checks = []
+
+        def check(name, ok, detail=""):
+            checks.append({"name": name, "ok": bool(ok), "detail": detail})
+
+        # clusters: every case with the same tag shares one non-null id; tags differ
+        by_tag = {}
+        for r in rows:
+            tag = r["case"].get("cluster")
+            if tag and r["finding"]:
+                by_tag.setdefault(tag, []).append(r["finding"].get("cluster"))
+        for tag, ids in by_tag.items():
+            n = len([r for r in rows if r["case"].get("cluster") == tag])
+            check("cluster '%s' groups all %d restatements" % (tag, n),
+                  len(ids) == n and None not in ids and len(set(ids)) == 1, "ids=%s" % ids)
+        tagged = {r["finding"]["cluster"] for r in rows
+                  if r["case"].get("cluster") and r["finding"] and r["finding"].get("cluster")}
+        stray = [r["case"]["id"] for r in rows if r["finding"] and r["finding"].get("cluster") in tagged
+                 and not r["case"].get("cluster")]
+        check("unrelated rules never join a cluster", not stray, "strays=%s" % stray)
+
+        # line-level flags
+        for r in rows:
+            c, f = r["case"], r["finding"]
+            if "exc" in c and f:
+                check("exception flag for '%s' is %s" % (c["id"], c["exc"]),
+                      f["flags"]["has_exception"] == c["exc"])
+            if "age" in c and f:
+                got = f.get("age_days")
+                check("age_days for '%s' is about %d" % (c["id"], c["age"]),
+                      got is not None and abs(got - c["age"]) <= 1, "got=%s" % got)
+
+        # the top of the list should be dogmas, not healthy text
+        top5 = sorted(glob, key=lambda f: -f["score"])[:5]
+        healthy_keys = [match_key(r["case"]) for r in low]
+        in_top5 = [f["text"][:50] for f in top5 if any(k in f["text"] for k in healthy_keys)]
+        check("top 5 holds no healthy or authored text", not in_top5, "found=%s" % in_top5)
+
+        metrics = {
+            "candidates": len(cand),
+            "recall": len(found) / len(cand) if cand else 1.0,
+            "global_coverage": len(glob_covered) / len(glob_all) if glob_all else 1.0,
+            "global_recall_top%d" % TOP_K: len(top) / len(glob_cand) if glob_cand else 1.0,
+            "project_recall": len(proj_found) / len(proj_cand) if proj_cand else 1.0,
+            "rank_auc": auc,
+            "excluded_leaks": len(leaks),
+            "clean_cases": len(clean),
+            "false_positive_rate": len(fp) / len(clean) if clean else 0.0,
+            "clean_auc": clean_auc,
+            "checks_passed": sum(1 for c in checks if c["ok"]),
+            "checks_total": len(checks),
+            "findings_total": len(findings),
+        }
+        return {"metrics": metrics, "checks": checks, "leaks": [r["case"]["id"] for r in leaks],
+                "missed": [r["case"]["id"] for r in cand if not r["finding"]],
+                "false_positives": [r["case"]["id"] for r in fp],
+                "hard_found": [r["case"]["id"] for r in hard if r["finding"]],
+                "hard_missed": [r["case"]["id"] for r in hard if not r["finding"]],
+                "hard_unflagged": [r["case"]["id"] for r in hard if r["unflagged"]],
+                "uncovered": [r["case"]["id"] for r in glob_all if not (r["finding"] or r["unflagged"])],
+                "outside_top": [r["case"]["id"] for r in glob_cand if r["rank"] > TOP_K]}, rows
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------- page
+
+def page_suite():
+    tmp = Path(tempfile.mkdtemp(prefix="undecree-page-"))
+    results = []
+
+    def check(name, ok, detail=""):
+        results.append({"name": name, "ok": bool(ok), "detail": detail})
+
+    def build(obj, *args):
+        src = tmp / "items.json"
+        out = tmp / "out.html"
+        src.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
+        r = run([sys.executable, str(SCRIPTS / "make_review.py"), str(src), "-o", str(out), *args])
+        return r, (out.read_text(encoding="utf-8") if out.exists() else "")
+
+    def payload(html):
+        m = re.search(r"const DATA = (.*?);\nconst T = DATA", html, re.S)
+        return json.loads(m.group(1)) if m else None
+
+    try:
+        hostile = "</script><img src=x onerror=alert(1)> {{DATA}} __DATA__   `${x}`"
+        obj = {"title": "<b>t</b> & co", "items": [
+            {"id": 1, "file": "~/a.md", "line": 3, "rule": hostile, "context": hostile,
+             "verdict": "fossil", "suggested": "edit", "proposal": hostile,
+             "also": [{"file": "~/b.md", "line": 1, "proposal": hostile}]},
+            {"id": 1, "file": "~/c.md", "rule": "dup id", "verdict": "under-scoped", "suggested": "delete"},
+            {"file": "~/ok.md", "rule": "healthy one", "verdict": "healthy", "context": "fine"},
+            {"file": "~/d.md", "line": None, "rule": "whole file", "verdict": "file", "suggested": "bogus"},
+        ], "clean": [{"file": "~/clean.md", "note": "ok"}]}
+        r, html = build(obj, "--lang", "en")
+        check("generator exits 0 on hostile input", r.returncode == 0, r.stderr[-200:])
+        data = payload(html)
+        check("DATA payload parses as JSON", data is not None)
+        if data:
+            items = data["items"]
+            ids = [i["id"] for i in items]
+            check("healthy item is folded into clean, not a card",
+                  len(items) == 3 and any(c.get("file") == "~/ok.md" for c in data["clean"]))
+            check("duplicate ids are renumbered", len(set(ids)) == len(ids), "ids=%s" % ids)
+            check("'edit' suggestion becomes 'rescope'", items[0]["suggested"] == "rescope")
+            check("unknown suggestion falls back to 'review'", items[-1]["suggested"] == "review")
+            check("hostile text survives intact", items[0]["rule"] == hostile)
+            check("English strings selected", data["t"]["keep"] == "Keep")
+        check("only the one real </script> in the page", html.count("</script>") == 1,
+              "count=%d" % html.count("</script>"))
+        check("title is HTML-escaped", "<b>t</b>" not in html and "&lt;b&gt;t&lt;/b&gt;" in html)
+
+        r, html = build({"items": [{"file": "x", "rule": "y", "verdict": "healthy"}]})
+        check("all-healthy input stops with a clear message", r.returncode == 1 and "nothing to review" in r.stderr)
+
+        r, html = build({"items": [{"file": "x", "rule": "y"}]}, "--lang", "es")
+        d2 = payload(html)
+        check("Spanish strings selected", d2 and d2["t"]["keep"] == "Mantener")
+
+        r, html = build({"lang": "es", "items": [{"file": "x", "rule": "y"}]})
+        check("lang from items.json is honoured", payload(html)["t"]["keep"] == "Mantener")
+
+        # the embedded script must at least parse
+        if shutil.which("node"):
+            r, html = build(obj, "--lang", "en")
+            m = re.search(r"<script>(.*?)</script>", html, re.S)
+            js = tmp / "page.js"
+            js.write_text(m.group(1) if m else "", encoding="utf-8")
+            c = run(["node", "--check", str(js)])
+            check("embedded script passes node --check", c.returncode == 0, c.stderr[-200:])
+        else:
+            check("embedded script passes node --check (node missing, skipped)", True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return results
+
+
+# --------------------------------------------------------------------------- report
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("--gate-holdout", action="store_true",
+                    help="fail the run when the holdout suite misses a candidate")
+    ap.add_argument("--suite", choices=["scanner", "holdout", "holdout2", "holdout3", "holdout4", "page", "all"], default="all")
+    args = ap.parse_args()
+
+    today = date.today()
+    out = {}
+    failed = []
+
+    for name, fn in (("scanner", None), ("holdout", corpus.holdout), ("holdout2", corpus.holdout2), ("holdout3", corpus.holdout3), ("holdout4", corpus.holdout4)):
+        if args.suite not in (name, "all"):
+            continue
+        s, rows = scanner_suite(today, fn)
+        out[name] = s
+        out["_rows_" + name] = rows
+        gate = name == "scanner" or args.gate_holdout
+        if "error" in s:
+            failed.append(name + " crashed")
+            continue
+        m = s["metrics"]
+        problems = []
+        floor = MIN_RECALL if name == "scanner" else MIN_HOLDOUT_RECALL
+        if m["recall"] < floor:
+            problems.append("recall %.0f%% < %.0f%%" % (100 * m["recall"], 100 * floor))
+        if m["global_coverage"] < 1.0:
+            problems.append("global coverage %.0f%%" % (100 * m["global_coverage"]))
+        if m["global_recall_top%d" % TOP_K] < MIN_TOP_RECALL:
+            problems.append("global recall in top %d too low" % TOP_K)
+        if name == "scanner" and m["rank_auc"] < MIN_AUC:
+            problems.append("ranking auc %.2f < %.2f" % (m["rank_auc"], MIN_AUC))
+        if m["excluded_leaks"]:
+            problems.append("%d excluded cases leaked" % m["excluded_leaks"])
+        problems += ["check: " + c["name"] for c in s["checks"] if not c["ok"]]
+        s["problems"] = problems
+        if gate:
+            failed += [name + ": " + p for p in problems]
+
+    if args.suite in ("page", "all"):
+        p = page_suite()
+        out["page"] = p
+        failed += ["page: " + c["name"] for c in p if not c["ok"]]
+
+    out["failed"] = failed
+
+    if args.json:
+        for k in [k for k in out if k.startswith("_rows")]:
+            out.pop(k)
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+        return 1 if failed else 0
+
+    for name in ("scanner", "holdout", "holdout2", "holdout3", "holdout4"):
+        rows = out.pop("_rows_" + name, [])
+        if name not in out or "metrics" not in out[name]:
+            continue
+        s = out[name]
+        m = s["metrics"]
+        gated = name == "scanner" or args.gate_holdout
+        print("%s%s  (%d labelled candidates, %d findings)" % (
+            name.upper(), "" if gated else " (informational)", m["candidates"], m["findings_total"]))
+        print("  recall                %5.1f%%   missed: %s" % (100 * m["recall"], ", ".join(s["missed"]) or "none"))
+        print("  global coverage       %5.1f%%   (pattern hits + unflagged lines)   uncovered: %s" % (
+            100 * m["global_coverage"], ", ".join(s["uncovered"]) or "none"))
+        print("  global recall top %-3d %5.1f%%   outside: %s" % (TOP_K, 100 * m["global_recall_top%d" % TOP_K],
+                                                                ", ".join(s["outside_top"]) or "none"))
+        print("  project recall        %5.1f%%" % (100 * m["project_recall"]))
+        print("  ranking (candidate > healthy) %.2f" % m["rank_auc"])
+        print("  excluded leaks        %d   %s" % (m["excluded_leaks"], ", ".join(s["leaks"]) or ""))
+        if m["clean_cases"]:
+            print("  false positives       %5.1f%%   flagged: %s" % (
+                100 * m["false_positive_rate"], ", ".join(s["false_positives"]) or "none"))
+            print("  ranking (candidate > clean)   %.2f" % m["clean_auc"])
+        if s["hard_found"] or s["hard_missed"]:
+            print("  hard (no marker)      by pattern: %s   only via --unflagged: %s" % (
+                ", ".join(s["hard_found"]) or "none", ", ".join(s["hard_unflagged"]) or "none"))
+        print("  checks                %d/%d" % (m["checks_passed"], m["checks_total"]))
+        for c in s["checks"]:
+            if not c["ok"] or args.verbose:
+                print("    %s %s %s" % ("ok " if c["ok"] else "FAIL", c["name"], c["detail"]))
+        if args.verbose:
+            print("\n  case                          label      found  rank  score  signals")
+            for r in rows:
+                c, f = r["case"], r["finding"]
+                print("  %-29s %-10s %-6s %-5s %-6s %s" % (c["id"], c["label"], "yes" if f else "no",
+                      r["rank"] or "-", f["score"] if f else "-", ",".join(f["signals"]) if f else ""))
+        print()
+    if "page" in out:
+        p = out["page"]
+        ok = sum(1 for c in p if c["ok"])
+        print("\nPAGE     %d/%d checks" % (ok, len(p)))
+        for c in p:
+            if not c["ok"] or args.verbose:
+                print("    %s %s %s" % ("ok " if c["ok"] else "FAIL", c["name"], c["detail"]))
+
+    print("\n" + ("PASS" if not failed else "FAIL: " + "; ".join(failed)))
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
