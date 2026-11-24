@@ -167,7 +167,13 @@ The skill also tells the agent how to avoid creating dogmas. Before saving anyth
 | Windsurf | `~/.codeium/windsurf/memories` |
 | Gemini CLI | `~/.gemini/GEMINI.md` |
 | Devin, OpenCode | `~/.config/devin`, `~/.config/opencode` (docs only) |
+| Hermes | `~/.hermes/SOUL.md`, `~/.hermes/memories` |
+| Grok | `~/.grok/AGENTS.md`, `~/.grok/memory-v2` |
+| Command Code | `~/.commandcode/taste` (the preferences it learns about you) |
+| Qwen Code, Amp, Kiro, Continue, Roo, Cline, Goose | `~/.qwen/QWEN.md`, `~/.config/amp/AGENTS.md`, `~/.kiro/steering`, `~/.continue/rules`, `~/.roo/rules`, `~/Documents/Cline/Rules`, `~/.config/goose/.goosehints` |
 | Projects | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.cursor/rules`, `.claude/`, `.devin/`, `.codex/` under `$HOME` (depth 4) or any `--project PATH` |
+
+Hermes, Grok and Command Code were checked against real files. The last row of harnesses is wired from each tool's documented rule locations and has only been tested against synthetic files (the evals check that every path in the table is read). Memory kept inside an app or in the cloud (Cursor's "User Rules" setting, chat-app memories) is not on disk and can't be scanned.
 
 Skill bodies (`SKILL.md`) are skipped by default: they are task guidance, not your rules. `--include-skills` adds them. To support a new harness, add its paths to the tables at the top of `find_dogmas.py`.
 

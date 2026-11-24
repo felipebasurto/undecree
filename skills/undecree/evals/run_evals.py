@@ -163,6 +163,33 @@ def scanner_suite(today, case_fn=None):
         in_top5 = [f["text"][:50] for f in top5 if any(k in f["text"] for k in healthy_keys)]
         check("top 5 holds no healthy or authored text", not in_top5, "found=%s" % in_top5)
 
+        # every harness the scanner claims to read is actually read
+        sys.path.insert(0, str(SCRIPTS))
+        import importlib
+        fd = importlib.import_module("find_dogmas")
+        cov_home = Path(tempfile.mkdtemp(prefix="undecree-cov-"))
+        try:
+            for hn, _kind, rel in fd.HARNESS_TARGETS:
+                tgt = cov_home / rel
+                if rel.endswith("/projects"):
+                    tgt = tgt / "-x" / "memory" / "rule.md"
+                elif Path(rel).suffix or Path(rel).name.startswith(".goose"):
+                    pass
+                else:
+                    tgt = tgt / "rule.md"
+                tgt.parent.mkdir(parents=True, exist_ok=True)
+                tgt.write_text("- Never use Opus for subagents, this is a cost limit.\n", encoding="utf-8")
+            cov = run([sys.executable, "-I", str(SCRIPTS / "find_dogmas.py"), "--json", "--no-projects"], home=cov_home)
+            cov_data = json.loads(cov.stdout) if cov.returncode == 0 else {"harnesses": [], "findings": []}
+            want = sorted({h for h, _k, _r in fd.HARNESS_TARGETS})
+            got = set(cov_data["harnesses"])
+            hit = {f["harness"] for f in cov_data["findings"]}
+            check("every harness in HARNESS_TARGETS is detected and read",
+                  not [h for h in want if h not in got or h not in hit],
+                  "missing=%s" % [h for h in want if h not in got or h not in hit])
+        finally:
+            shutil.rmtree(cov_home, ignore_errors=True)
+
         # the readable report: repeats collapse, the list is capped, facts are kept out of it
         txt = run([sys.executable, "-I", str(SCRIPTS / "find_dogmas.py"), "--top", "5"], home=tmp)
         shown = [l for l in txt.stdout.splitlines() if re.match(r"^\s+(?:!!|  )\s*\[\s*-?\d+\]", l)]

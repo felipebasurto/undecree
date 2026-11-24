@@ -34,7 +34,7 @@ A directive should carry three things. Missing any is a red flag:
 python3 -I <skill-dir>/scripts/find_dogmas.py [--project PATH]... [--json] [--top N] [--all] [--verbose] [--unflagged | --unflagged-all] [--include-skills] [--all-tiers]
 ```
 
-Covers `~/.claude`, `.codex`, `.cursor`, `.codeium`, `.gemini`, `.config/devin`, `.config/opencode`, `.agents`, plus a project sweep of `$HOME` (depth 4). Output is ranked by a suspicion score:
+Covers `~/.claude`, `.codex`, `.cursor`, `.codeium`, `.gemini`, `.hermes`, `.grok`, `.commandcode`, `.qwen`, `.kiro`, `.continue`, `.roo`, Cline, Goose, Amp, `.config/devin`, `.config/opencode`, `.agents`, plus a project sweep of `$HOME` (depth 4). The first line of the report lists the harnesses it found. **If the user runs an agent that is not in that list, look for where it keeps rules or memory (`ls -a ~`, `~/.config`) and run the scanner on it with `--project PATH`, then add it to `HARNESS_TARGETS`.** Output is ranked by a suspicion score:
 
 - Global config is listed best first, **one entry per rule**: the same rule restated in other files (a small cluster), or several hits inside one memory file, collapse into the best line with the rest listed under it. `--top N` caps the list (default 40, `0` = all), `--all` turns the collapsing off, `--json` always has every line. Project rule files are summarized per file (`--verbose` for every line).
 - `signals` say why a line was flagged: `ban` (never / don't / avoid / prohibido), `absolute` (always / only / must / limits like "under 20 words"), `temporal` (the rule carries its origin: "for now", "I'm tired", "credits are low", "no longer").

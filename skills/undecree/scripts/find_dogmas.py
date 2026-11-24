@@ -75,6 +75,20 @@ HARNESS_TARGETS = [
     # Whole config dirs: only doc files are read; skills/ is pruned below.
     ("devin", "config", ".config/devin"),
     ("opencode", "config", ".config/opencode"),
+    # Hermes, Grok, Command Code: persona / memory / learned-preferences files
+    ("hermes", "global-rules", ".hermes/SOUL.md"),
+    ("hermes", "memory", ".hermes/memories"),
+    ("grok", "global-rules", ".grok/AGENTS.md"),
+    ("grok", "memory", ".grok/memory-v2"),
+    ("commandcode", "memory", ".commandcode/taste"),
+    # From each tool's documented rule locations
+    ("qwen", "global-rules", ".qwen/QWEN.md"),
+    ("amp", "global-rules", ".config/amp/AGENTS.md"),
+    ("kiro", "rules", ".kiro/steering"),
+    ("continue", "rules", ".continue/rules"),
+    ("roo", "rules", ".roo/rules"),
+    ("cline", "rules", "Documents/Cline/Rules"),
+    ("goose", "global-rules", ".config/goose/.goosehints"),
 ]
 
 SKILLS_TARGETS = [
@@ -92,7 +106,7 @@ PRUNE_DIRS = {
     ".nuxt", ".turbo", ".cache", "cache", "logs", "log", "tmp", "temp",
     "__pycache__", ".venv", "venv", "target", "Library", ".Trash",
     "Pictures", "Photos Library", "Music", "Movies", "Applications",
-    "archived_sessions", "attachments", "history", "sessions",
+    "archived_sessions", "attachments", "history", "sessions", "observations", "_inbox",
 }
 
 PROJECT_PRUNE_DIRS = PRUNE_DIRS | {
