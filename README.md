@@ -190,7 +190,7 @@ The scanner is regex and heuristics, so it has a test suite that says what it ca
 python3 skills/undecree/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|page] [--gate-holdout]
 ```
 
-CI runs it on Python 3.9 and 3.13. The main corpus gates; so do the held-out rounds, once folded in.
+CI runs it on Python 3.10 and 3.13 (the scripts also run on 3.9, which is what macOS ships). The main corpus gates; so do the held-out rounds, once folded in.
 
 **What the numbers mean.** The held-out rounds are the honest part. Each one was written fresh, run against the scanner as it was, and only then were the misses folded into the patterns. On phrasing the scanner had not seen, the first run caught about two thirds of the dogmas (65–70% lexical recall). After folding the misses in, that round, like the others, scores 100%, but a round you tuned against measures nothing about new phrasing. So the suite keeps getting new rounds, and the skill is built around that limit:
 
