@@ -23,7 +23,7 @@ bodies are task guidance, not user dogma. Pass --include-skills to scan
 the global harness skill dirs too.
 
 Usage:
-    find_dogmas.py [--json] [--no-projects] [--project PATH]...
+    find_dogmas.py [--json] [--file PATH]... [--no-projects] [--project PATH]...
                    [--depth N] [--include-skills] [--all-tiers] [--verbose]
 """
 
@@ -43,11 +43,14 @@ PROJECT_FILES = {
     "CLAUDE.md",
     "CLAUDE.local.md",
     "AGENTS.md",
+    "AGENTS.override.md",
     "GEMINI.md",
     "QWEN.md",
     ".cursorrules",
     ".windsurfrules",
     ".clinerules",
+    ".roorules",
+    ".goosehints",
     "copilot-instructions.md",
 }
 
@@ -59,11 +62,13 @@ CONFIG_SUBDIRS = {"rules", "agents", "memory", "prompts", "commands"}
 HARNESS_TARGETS = [
     # Claude Code
     ("claude-code", "global-rules", ".claude/CLAUDE.md"),
+    ("claude-code", "global-rules", ".claude/CLAUDE.local.md"),
     ("claude-code", "memory", ".claude/projects"),
     ("claude-code", "rules", ".claude/rules"),
     ("claude-code", "agents", ".claude/agents"),
     # Codex
     ("codex", "global-rules", ".codex/AGENTS.md"),
+    ("codex", "global-rules", ".codex/AGENTS.override.md"),
     ("codex", "agents", ".codex/agents"),
     ("codex", "prompts", ".codex/prompts"),
     # Cursor
@@ -112,6 +117,8 @@ PRUNE_DIRS = {
 PROJECT_PRUNE_DIRS = PRUNE_DIRS | {
     ".cargo", ".rustup", ".npm", ".nvm", ".pyenv", ".rbenv", ".volta",
     ".docker", ".kube", ".ollama", ".vscode", ".idea", ".expo",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    "Downloads", "Public", "Pods", "DerivedData", "vendor", "coverage", "out",
     "skills", "references", "assets", "examples", "templates",
 }
 
@@ -156,11 +163,11 @@ TIER2 = re.compile(
 )
 ONLY_END = re.compile(r"\b\w+ only(?:[.!,;]|\s*$)", re.IGNORECASE)
 IDIOMS = re.compile(r"\bnever[- ]?(?:mind|ending)\b|\bnevertheless\b|\bnever-\w+|\w+-never\b"
-                    r"|\b(?:always|only)-\w+|\b\w+-only\b", re.IGNORECASE)
+                    r"|\b(?:always|only)-\w+|\b\w+-only\b|\bdo(?:n'?t| not) forget\b", re.IGNORECASE)
 # The origin of a rule showing through: time-bound or emotional context. A line with
 # one of these is worth a look even when it has no absolute word at all.
 TEMPORAL = re.compile(
-    r"\b(?:tonight|overnight|for now|for today|today|this week|this month|temporar\w*"
+    r"\b(?:tonight|overnight|for now|for today|today(?![\u2019']s\b)|this week|this month|temporar\w*"
     r"|until further notice|until i say|i'?m tired|tired of|low on credits|out of credits"
     r"|credits? (?:are|is) (?:low|tight|limited)|while (?:\w+ ){0,2}(?:are|is) (?:low|tight|limited)"
     r"|me quedo sin|estoy cansad[oa]|por ahora|de momento|hasta nuevo aviso|este mes|esta semana|hoy"
@@ -205,7 +212,8 @@ TOPIC_RE = re.compile(
 STYLE_RE = re.compile(
     r"\b(?:verbose|wordy|concise|emoji|comments?|only reply|words)\b", re.IGNORECASE)
 ISO_DATE_RE = re.compile(r"\b((?:19|20)\d{2})-(\d{2})-(\d{2})\b")
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+INLINE_COMMENT_RE = re.compile(r"<!--.*?-->")
 STALE_AFTER_DAYS = 60
 DURABLE_RE = re.compile(
     r"\b(?:security|secrets?|credentials?|policy|compliance|legal|license|production|CI|lint|privacy|gdpr)\b",
@@ -257,14 +265,14 @@ def window(lines: list, i: int) -> str:
 
 IMPERATIVE_START = re.compile(
     r"^(?:please\s+)?(?:never|don'?t|do|dont|no|always|only|stop|avoid|keep|use|run|make|respond|answer|reply"
-    r"|write|be|quit|skip|ask|limit|refrain|refuse|cap|treat|speak|delegate|default|set|put|add|remove|delete"
+    r"|output|return|write|be|quit|skip|ask|limit|refrain|refuse|cap|treat|speak|delegate|default|set|put|add|remove|delete"
     r"|create|prefer|follow|check|confirm|forget|whatever|absolutely|from|until|under|max|nunca|jam[aá]s|siempre"
     r"|solo|responde|contesta|evita|usa|haz|deja|prohibido|sin|nada|habla|escribe|quiero|ya|por|nadie|zero)\b",
     re.IGNORECASE,
 )
 USER_VOICE = re.compile(
     r"\b(?:you|your|you're|i|i'm|i'll|i've|me|my|we|we're|we've|our|us|user|owner|founder"
-    r"|yo|mi|mis|t[uú]|tus?|nosotros|usuario)\b",
+    r"|yo|mi|mis|t[uú]|tus?|te|nosotros|usuario|estoy|tengo|tienes|debes|hagas|uses|quiero)\b",
     re.IGNORECASE,
 )
 
@@ -320,7 +328,7 @@ STRONG_BAN = re.compile(
 # Third-person statements about how something is ("The cron never runs on weekends.",
 # "Only two engineers have prod access."), as opposed to an instruction.
 FACT_START = re.compile(
-    r"^(?:the(?! (?:user|owner|founder|client)\b)|this(?! (?:week|month|quarter|sprint|year|weekend|afternoon|morning|evening)\b)|that|these|those|our|its|their|there|it(?!['\u2019])|nobody|no one|everyone|everybody"
+    r"^(?:currently\b|the(?! (?:user|owner|founder|client)\b)|this(?! (?:week|month|quarter|sprint|year|weekend|afternoon|morning|evening)\b)|that|these|those|our|its|their|there|it(?!['\u2019])|nobody|no one|everyone|everybody"
     r"|only (?:\d+|two|three|four|five|several|some|a few|admins?|owners?|maintainers?))\b", re.IGNORECASE)
 FACT_VERB = re.compile(r"\b(?:is|are|was|were) (?:never|always|only)\b", re.IGNORECASE)
 # What still counts as an instruction inside a sentence that otherwise reads as a fact.
@@ -331,8 +339,7 @@ MEMTYPE_RE = re.compile(r"^\s*type:\s*(\w+)\s*$")
 URL_RE = re.compile(r"https?://")
 MEMTYPE_ADJ = {"user": -4, "reference": -4, "feedback": 1}
 
-UNFLAGGED = []   # directive-shaped lines in global files that no pattern matched
-RULE_FILES = {"CLAUDE.md", "AGENTS.md", "GEMINI.md", "QWEN.md", "global_rules.md"}
+RULE_FILES = {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md", "GEMINI.md", "QWEN.md", "global_rules.md"}
 BULLET_RE = re.compile(r"^\s*(?:[-*+\u2022]|\d+[.)])\s+\S")
 
 
@@ -349,7 +356,7 @@ def keep_unflagged(path: Path, kind: str, line: str) -> bool:
     return False
 
 
-def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) -> None:
+def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set, unflagged: list) -> None:
     try:
         real = path.resolve()
     except OSError:
@@ -376,28 +383,37 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
             mm = MEMTYPE_RE.match(fl)
             if mm:
                 mtype = mm.group(1).lower()
-    first_bullet = next((j for j, l in enumerate(lines) if BULLET_RE.match(l)), len(lines))
+    first_bullet = next((j for j, l in enumerate(lines) if BULLET_RE.match(l)), None)
     is_rule_file = path.name in RULE_FILES
-    in_fence = False
+    fence_char = ""
+    fence_len = 0
     in_comment = False
     for i, line in enumerate(lines):
         if in_comment:
-            if "-->" in line:
-                in_comment = False
-            continue
+            if "-->" not in line:
+                continue
+            in_comment = False
+            line = line.split("-->", 1)[1]
         if "<!--" in line:
-            if "-->" not in line.split("<!--", 1)[1]:
+            line = INLINE_COMMENT_RE.sub("", line)
+            if "<!--" in line:
                 in_comment = True
-            line = line.split("<!--", 1)[0]
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
+                line = line.split("<!--", 1)[0]
+        if fence_char:
+            close_m = FENCE_RE.match(line)
+            if close_m and close_m.group(1)[0] == fence_char and len(close_m.group(1)) >= fence_len and not line[close_m.end():].strip():
+                fence_char = ""
+                fence_len = 0
             continue
-        if in_fence:
+        open_m = FENCE_RE.match(line)
+        if open_m:
+            fence_char = open_m.group(1)[0]
+            fence_len = len(open_m.group(1))
             continue
         if re.match(r"^\s*(?:name|type|metadata|originSessionId)\s*:", line):
             continue          # frontmatter keys, not rules
         signals = []
-        cleaned = IDIOMS.sub(" ", line)   # "never mind" is not a ban
+        cleaned = IDIOMS.sub(" ", line)   # "never mind" / "don't forget" are not bans
         if TIER1_EN.search(cleaned) or TIER1_ES.search(cleaned) or BARE_NO.match(line):
             signals.append("ban")
         if TIER2.search(cleaned) or ONLY_END.search(cleaned):
@@ -406,7 +422,7 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
             signals.append("temporal")
         if not signals:
             if harness != "project" and keep_unflagged(path, file_kind, line):
-                UNFLAGGED.append({"harness": harness, "kind": file_kind, "path": str(path),
+                unflagged.append({"harness": harness, "kind": file_kind, "path": str(path),
                                   "line": i + 1, "text": line.strip()[:300]})
             continue
         tier = 1 if "ban" in signals else 2
@@ -416,7 +432,7 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
         role = "rule"
         if WHY_RE.match(line):
             role = "reason"          # explains a rule written elsewhere in the file
-        elif is_rule_file and i < first_bullet and not line.lstrip().startswith("#"):
+        elif is_rule_file and first_bullet is not None and i < first_bullet and not line.lstrip().startswith("#"):
             role, shape = "preamble", "descriptive"   # what the file is, not a rule in it
         topic = bool(TOPIC_RE.search(win))
         body = re.sub(r"^\s*(?:[-*+\u2022]|\d+[.)])?\s*(?:\*\*[^*]+\*\*:?\s*)?", "", line).strip()
@@ -425,7 +441,7 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
         if is_fact and not topic and not (STRONG_FACT.search(line) if fact else STRONG_BAN.search(line)):
             # states a fact, not a rule: keep it out of the ranked list
             if harness != "project" and keep_unflagged(path, file_kind, line):
-                UNFLAGGED.append({"harness": harness, "kind": file_kind, "path": str(path),
+                unflagged.append({"harness": harness, "kind": file_kind, "path": str(path),
                                   "line": i + 1, "text": line.strip()[:300]})
             continue
         style = bool(STYLE_RE.search(win))
@@ -450,7 +466,7 @@ def scan_file(path: Path, harness: str, kind: str, findings: list, seen: set) ->
         })
 
 
-def walk_docs(root: Path, harness: str, kind: str, findings: list, seen: set,
+def walk_docs(root: Path, harness: str, kind: str, findings: list, seen: set, unflagged: list,
               only_skill_md: bool = False, skip_skills: bool = True) -> None:
     if not root.is_dir():
         return
@@ -464,21 +480,21 @@ def walk_docs(root: Path, harness: str, kind: str, findings: list, seen: set,
                 continue
             p = Path(dirpath) / name
             if p.suffix.lower() in SCAN_EXTS:
-                scan_file(p, harness, kind, findings, seen)
+                scan_file(p, harness, kind, findings, seen, unflagged)
 
 
-def scan_claude_projects(findings: list, seen: set) -> None:
+def scan_claude_projects(findings: list, seen: set, unflagged: list) -> None:
     base = HOME / ".claude" / "projects"
     if not base.is_dir():
         return
-    for proj in base.iterdir():
+    for proj in sorted(base.iterdir()):
         mem = proj / "memory"
         if mem.is_dir():
-            for p in sorted(mem.glob("*.md")):
-                scan_file(p, "claude-code", "memory", findings, seen)
+            for p in sorted(mem.rglob("*.md")):
+                scan_file(p, "claude-code", "memory", findings, seen, unflagged)
 
 
-def collect_harness_files(findings: list, seen: set, include_skills: bool) -> set:
+def collect_harness_files(findings: list, seen: set, unflagged: list, include_skills: bool) -> set:
     harnesses = set()
     for harness, kind, rel in HARNESS_TARGETS:
         path = HOME / rel
@@ -486,25 +502,26 @@ def collect_harness_files(findings: list, seen: set, include_skills: bool) -> se
             continue
         harnesses.add(harness)
         if path.is_file():
-            scan_file(path, harness, kind, findings, seen)
+            scan_file(path, harness, kind, findings, seen, unflagged)
         elif rel.endswith("/projects"):
-            scan_claude_projects(findings, seen)
+            scan_claude_projects(findings, seen, unflagged)
         else:
-            walk_docs(path, harness, kind, findings, seen, skip_skills=not include_skills)
+            walk_docs(path, harness, kind, findings, seen, unflagged, skip_skills=not include_skills)
     if include_skills:
         for harness, rel in SKILLS_TARGETS:
             path = HOME / rel
             if path.is_dir():
                 harnesses.add(harness)
-                walk_docs(path, harness, "skills", findings, seen,
+                walk_docs(path, harness, "skills", findings, seen, unflagged,
                           only_skill_md=True, skip_skills=False)
     return harnesses
 
 
-def scan_project_dir(root: Path, findings: list, seen: set, max_depth: int) -> None:
+def scan_project_dir(root: Path, findings: list, seen: set, unflagged: list, max_depth: int) -> None:
     root = root.resolve()
     if not root.is_dir():
         return
+    seen_dirs = {root}
 
     def recurse(d: Path, depth: int) -> None:
         if depth > max_depth:
@@ -520,21 +537,37 @@ def scan_project_dir(root: Path, findings: list, seen: set, max_depth: int) -> N
                         continue
                     if e.name.startswith(".") and e.name not in PROJECT_DOTDIRS:
                         continue
+                    real_d = e.resolve()
+                    if real_d in seen_dirs:
+                        continue
+                    seen_dirs.add(real_d)
                     recurse(e, depth + 1)
                 elif e.is_file():
                     name = e.name
                     suffix = e.suffix.lower()
                     in_dotdir = any(part in PROJECT_DOTDIRS for part in e.parts)
                     if name in PROJECT_FILES and (suffix in SCAN_EXTS or suffix == ""):
-                        scan_file(e, "project", "project-rules", findings, seen)
+                        scan_file(e, "project", "project-rules", findings, seen, unflagged)
                     elif (in_dotdir and suffix in SCAN_EXTS
                           and (suffix == ".mdc"
                                or any(part in CONFIG_SUBDIRS for part in e.parts))):
-                        scan_file(e, "project", "project-rules", findings, seen)
+                        scan_file(e, "project", "project-rules", findings, seen, unflagged)
             except OSError:
                 continue
 
     recurse(root, 0)
+
+
+def infer_target(path: Path) -> tuple:
+    """Guess (harness, kind) for a single file passed via --file."""
+    try:
+        rel = path.resolve().relative_to(HOME.resolve()).as_posix()
+    except ValueError:
+        return ("direct", "global-rules")
+    for harness, kind, target_rel in HARNESS_TARGETS:
+        if rel == target_rel or rel.startswith(target_rel.rstrip("/") + "/"):
+            return (harness, kind)
+    return ("direct", "global-rules")
 
 
 STOP = set("""a an the and or of to in on for with without by at as is are be been this that these those
@@ -612,6 +645,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    ap.add_argument("--file", action="append", default=[], metavar="PATH",
+                    help="scan only these specific file(s) (repeatable; useful for re-scanning touched files)")
     ap.add_argument("--no-projects", action="store_true",
                     help="skip the project-file sweep under $HOME")
     ap.add_argument("--project", action="append", default=[], metavar="PATH",
@@ -635,15 +670,27 @@ def main() -> int:
     args = ap.parse_args()
 
     findings = []
+    unflagged = []
     seen = set()
-    harnesses = collect_harness_files(findings, seen, args.include_skills)
+    harnesses = set()
 
-    project_roots = []
-    if not args.no_projects:
-        project_roots.append(HOME)
-    project_roots.extend(Path(p).expanduser() for p in args.project)
-    for root in project_roots:
-        scan_project_dir(root, findings, seen, args.depth)
+    if args.file:
+        for raw in args.file:
+            p = Path(raw).expanduser()
+            if not p.is_file():
+                print(f"warning: not a file: {raw}", file=sys.stderr)
+                continue
+            h, k = infer_target(p)
+            harnesses.add(h)
+            scan_file(p, h, k, findings, seen, unflagged)
+    else:
+        harnesses = collect_harness_files(findings, seen, unflagged, args.include_skills)
+        project_roots = []
+        if not args.no_projects:
+            project_roots.append(HOME)
+        project_roots.extend(Path(p).expanduser() for p in args.project)
+        for root in project_roots:
+            scan_project_dir(root, findings, seen, unflagged, args.depth)
 
     if not args.all_tiers:
         # Global config is small: show every candidate. Project rule files are large and
@@ -658,7 +705,7 @@ def main() -> int:
             "harnesses": sorted(harnesses),
             "files_with_findings": len({f["path"] for f in findings}),
             "findings": findings,
-            "unflagged": UNFLAGGED,
+            "unflagged": unflagged,
         }, indent=2))
         return 0
 
@@ -668,7 +715,11 @@ def main() -> int:
         print("Harnesses found: " + ", ".join(sorted(harnesses)))
 
     def short(p: str) -> str:
-        return p.replace(str(HOME), "~", 1)
+        try:
+            rel = Path(p).resolve().relative_to(HOME.resolve())
+            return "~/" + rel.as_posix()
+        except ValueError:
+            return p
 
     glob = [f for f in findings if f["harness"] != "project"]
     proj = [f for f in findings if f["harness"] == "project"]
@@ -677,7 +728,7 @@ def main() -> int:
     # in one memory file collapse into the best-ranked line, with the others listed under it.
     entries, seen_cluster, seen_file = [], {}, {}
     size = {}
-    for f in glob:
+    for f in findings:
         if f["cluster"]:
             size[f["cluster"]] = size.get(f["cluster"], 0) + 1
     for f in glob:
@@ -718,25 +769,26 @@ def main() -> int:
     if len(entries) > len(shown):
         print(f"  … {len(entries) - len(shown)} lower-ranked rules not shown (--top 0 lists all).")
 
-    by_file = {}
-    for f in proj:
-        by_file.setdefault(f["path"], []).append(f)
-    print(f"\n== project rule files: {len(proj)} candidates in {len(by_file)} files ==")
-    for path, hits in sorted(by_file.items(), key=lambda kv: -max(h["score"] for h in kv[1])):
-        top = [h for h in hits if h["score"] >= 4 or h["topic"]]
-        print(f"  {short(path)}: {len(hits)} directives, {len(top)} on risky topics")
-        for h in (hits if args.verbose else top[:3]):
-            print(f"      L{h['line']:<4} [{h['score']}] {h['text'][:140]}")
+    if not args.file:
+        by_file = {}
+        for f in proj:
+            by_file.setdefault(f["path"], []).append(f)
+        print(f"\n== project rule files: {len(proj)} candidates in {len(by_file)} files ==")
+        for path, hits in sorted(by_file.items(), key=lambda kv: -max(h["score"] for h in kv[1])):
+            top = [h for h in hits if h["score"] >= 4 or h["topic"]]
+            print(f"  {short(path)}: {len(hits)} directives, {len(top)} on risky topics")
+            for h in (hits if args.verbose else top[:3]):
+                print(f"      L{h['line']:<4} [{h['score']}] {h['text'][:140]}")
 
     if args.unflagged or args.unflagged_all:
-        shown = [u for u in UNFLAGGED if args.unflagged_all or u["kind"] != "memory"]
+        shown = [u for u in unflagged if args.unflagged_all or u["kind"] != "memory"]
         print(f"\n== global config lines no pattern matched: {len(shown)} ==")
         if not args.unflagged_all:
-            print("   (memory bodies left out: --unflagged-all adds %d more lines)" % (len(UNFLAGGED) - len(shown)))
+            print("   (memory bodies left out: --unflagged-all adds %d more lines)" % (len(unflagged) - len(shown)))
         for u in shown:
             print(f"  {short(u['path'])}:{u['line']}  {u['text'][:150]}")
     else:
-        print(f"\n{len(UNFLAGGED)} more lines in global config matched no pattern (--unflagged lists rule files and memory indexes, --unflagged-all adds memory bodies).")
+        print(f"\n{len(unflagged)} more lines in global config matched no pattern (--unflagged lists rule files and memory indexes, --unflagged-all adds memory bodies).")
     print("\n!! = tier-1 absolute with no exception in its own lines. [score] ranks suspicion.")
     print("cluster#N = same rule restated in several files (fix together).")
     print("Flags are read from the line and its continuation lines. Open the file before judging.")

@@ -1,12 +1,14 @@
 {
   "name": "undecree",
   "description": "One skill to find and undo agent rules that were never meant to be permanent",
-  "owner": { "name": "Felipe Basurto" },
+  "owner": {
+    "name": "Felipe Basurto"
+  },
   "plugins": [
     {
       "name": "undecree",
       "source": "./",
-      "description": "Finds the one-off comments your agents fossilized into permanent rules ("never use Opus") and opens a review page where you keep, rewrite or delete each one."
+      "description": "Finds one-off comments your agents fossilized into permanent rules ('never use Opus') and lets you keep, rewrite or delete each one, in the chat or in a review page."
     }
   ]
 }

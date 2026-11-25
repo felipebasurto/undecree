@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -16,7 +19,18 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - name: Evals (scanner, held-out rounds, review page)
-        run: python3 skills/undecree/evals/run_evals.py --gate-holdout
+      - name: Compile scripts and check tracked files
+        run: |
+          python3 -m py_compile skills/undecree/scripts/find_dogmas.py skills/undecree/scripts/make_review.py evals/corpus.py evals/run_evals.py
+          python3 - <<'PY'
+          import pathlib, subprocess, sys
+          bad = [p for p in subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+                 if pathlib.Path(p).name in {".DS_Store", "Thumbs.db", "desktop.ini"}]
+          if bad:
+              print("Tracked OS metadata files:", bad, file=sys.stderr)
+              sys.exit(1)
+          PY
+      - name: Evals (scanner, held-out rounds, review page, manifests)
+        run: python3 evals/run_evals.py --gate-holdout
       - name: Render the demo review page
         run: python3 skills/undecree/scripts/make_review.py examples/demo/items.json -o "$RUNNER_TEMP/review.html"

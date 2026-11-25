@@ -108,7 +108,7 @@ Harnesses found: claude-code, codex, cursor, devin, gemini, opencode, windsurf
 | `memory:feedback` | The memory file's own `type`. `user` and `reference` memories are facts and rank lower. |
 | `date` `reason` `exc` `scope` | What the line itself carries. Read from the line and its continuation lines, not the whole file. |
 
-**2. Triage.** The agent opens the top candidates and reads around them. It writes `items.json`: one card per rule, a verdict, a suggested action, a proposed rewrite and the "if you delete it" outcome. Healthy rules go to a separate list and never get a card. See the [schema](skills/undecree/SKILL.md#itemsjson).
+**2. Triage.** The agent opens the top candidates and reads around them. It prepares one card per rule, a verdict, a suggested action, a proposed rewrite and the "if you delete it" outcome. Healthy rules go to a separate list and never get a card. See the [HTML review schema](skills/undecree/references/review-page.md#itemsjson-schema) if you opt for the page.
 
 **3. Review.** The agent asks whether you want it in the chat or as a page. In the chat it shows numbered cards and you answer in short form. For the page, [`make_review.py`](skills/undecree/scripts/make_review.py) turns `items.json` into the HTML above and you copy the decisions as JSON.
 
@@ -161,8 +161,8 @@ The skill also tells the agent how to avoid creating dogmas. Before saving anyth
 
 | Harness | Read |
 |---|---|
-| Claude Code | `~/.claude/CLAUDE.md`, `~/.claude/projects/*/memory`, `~/.claude/rules`, `~/.claude/agents` |
-| Codex | `~/.codex/AGENTS.md`, `agents`, `prompts` |
+| Claude Code | `~/.claude/CLAUDE.md`, `~/.claude/CLAUDE.local.md`, `~/.claude/projects/*/memory`, `~/.claude/rules`, `~/.claude/agents` |
+| Codex | `~/.codex/AGENTS.md`, `~/.codex/AGENTS.override.md`, `agents`, `prompts` |
 | Cursor | `~/.cursor/rules` |
 | Windsurf | `~/.codeium/windsurf/memories` |
 | Gemini CLI | `~/.gemini/GEMINI.md` |
@@ -171,7 +171,7 @@ The skill also tells the agent how to avoid creating dogmas. Before saving anyth
 | Grok | `~/.grok/AGENTS.md`, `~/.grok/memory-v2` |
 | Command Code | `~/.commandcode/taste` (the preferences it learns about you) |
 | Qwen Code, Amp, Kiro, Continue, Roo, Cline, Goose | `~/.qwen/QWEN.md`, `~/.config/amp/AGENTS.md`, `~/.kiro/steering`, `~/.continue/rules`, `~/.roo/rules`, `~/Documents/Cline/Rules`, `~/.config/goose/.goosehints` |
-| Projects | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.cursor/rules`, `.claude/`, `.devin/`, `.codex/` under `$HOME` (depth 4) or any `--project PATH` |
+| Projects | `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `AGENTS.override.md`, `GEMINI.md`, `QWEN.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `.roorules`, `.goosehints`, `copilot-instructions.md`, `.cursor/rules`, `.claude/`, `.devin/`, `.codex/` under `$HOME` (depth 4) or any `--project PATH` |
 
 Hermes, Grok and Command Code were checked against real files. The last row of harnesses is wired from each tool's documented rule locations and has only been tested against synthetic files (the evals check that every path in the table is read). Memory kept inside an app or in the cloud (Cursor's "User Rules" setting, chat-app memories) is not on disk and can't be scanned.
 
@@ -189,16 +189,17 @@ python3 skills/undecree/scripts/make_review.py examples/demo/items.json -o revie
 
 ## Evals
 
-The scanner is regex and heuristics, so it has a test suite that says what it can and can't find. [`evals/`](skills/undecree/evals) builds a fake `$HOME` with labelled lines (dates are relative to today, so it never goes stale), runs the real scanner on it, and measures:
+The scanner is regex and heuristics, so it has a test suite that says what it can and can't find. [`evals/`](evals) builds a fake `$HOME` with labelled lines (dates are relative to today, so it never goes stale), runs the real scanner on it, and measures:
 
 - **Lexical recall**: did it flag the lines that are dogmas.
 - **Global coverage**: flagged lines plus the `--unflagged` safety net, for the global files an agent reads whole.
 - **Ranking**: do real candidates score above healthy rules and above ordinary text (AUC).
 - **False positives** on descriptive text ("the server never restarts"), exclusion leaks (code fences, comments, skills, `node_modules`), cluster and line-level flag checks.
-- **The review page** with hostile input: `</script>` and template placeholders inside rule text, duplicate ids, unknown values, healthy items, language selection, and (when Node is installed) a syntax check of the page's JavaScript.
+- **The review page** with hostile input: `</script>` and template placeholders inside rule text, duplicate or invalid ids, unknown values, healthy items, language selection, and (when Node is installed) a syntax check of the page's JavaScript.
+- **Repo integrity**: valid JSON across plugin manifests, version sync with `SKILL.md`, Agent Skills frontmatter checks, and local link resolution.
 
 ```bash
-python3 skills/undecree/evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|holdout5|holdout6|page] [--gate-holdout]
+python3 evals/run_evals.py [-v] [--suite scanner|holdout|holdout2|holdout3|holdout4|holdout5|holdout6|holdout7|page|repo] [--gate-holdout]
 ```
 
 CI runs it on Python 3.10 and 3.13 (the scripts also run on 3.9, which is what macOS ships). The main corpus gates; so do the held-out rounds, once folded in.
@@ -260,15 +261,23 @@ cp -R undecree/skills/undecree ~/.claude/skills/   # or ~/.cursor/skills/, ~/.co
 ## Repo layout
 
 ```
+plugin.json             portable Agent Plugins 1.0 manifest
+.claude-plugin/         Claude Code plugin and marketplace manifests
+.cursor-plugin/         Cursor plugin manifest
+gemini-extension.json   Gemini CLI extension manifest
 skills/undecree/
-  SKILL.md              the skill: workflow, items.json schema, apply rules
+  SKILL.md              the skill: workflow, chat review, apply rules
+  agents/openai.yaml    Codex / OpenAI skill metadata
+  references/
+    review-page.md      items.json schema and HTML page notes (loaded on demand)
   scripts/
     find_dogmas.py      scanner: ranks candidate lines across every harness
     make_review.py      items.json -> self-contained review.html
-  evals/
-    corpus.py           labelled fake $HOME, one function per round
-    run_evals.py        metrics and gates
   assets/               mark, flat mark, brand notes
+evals/
+  corpus.py             labelled fake $HOME, one function per round
+  run_evals.py          metrics, page tests, manifest checks and gates
+  triggers.json         positive and near-miss skill trigger prompts
 examples/demo/          the items.json behind the screenshots
 ```
 

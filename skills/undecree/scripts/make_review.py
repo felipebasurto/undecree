@@ -235,8 +235,8 @@ TEMPLATE = r"""<!DOCTYPE html>
            opacity:0; pointer-events:none; }
   .s-right { top:18px; left:18px; transform:rotate(-8deg); background:var(--keep-bg); color:var(--keep-ink); }
   .s-left { top:18px; right:18px; transform:rotate(8deg); background:var(--delete-bg); color:var(--delete-ink); }
-  .s-up { top:18px; left:50%; margin-left:-60px; background:var(--rewrite-bg); color:var(--rewrite-ink); }
-  .s-down { bottom:18px; left:50%; margin-left:-60px; background:var(--look-bg); color:var(--look-ink); }
+  .s-up { top:18px; left:50%; transform:translateX(-50%); background:var(--rewrite-bg); color:var(--rewrite-ink); }
+  .s-down { bottom:18px; left:50%; transform:translateX(-50%); background:var(--look-bg); color:var(--look-ink); }
   .dactions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:20px; }
   .big { border:0; border-radius:999px; height:48px; padding:0 22px; font:600 16px var(--sans); transition:filter .15s ease-out; }
   .big:hover { filter:brightness(.94); }
@@ -286,7 +286,7 @@ function place(file, line) {
   const short = parts.length > 4 ? "…/" + parts.slice(-3).join("/") : file;
   const i = short.lastIndexOf("/");
   const head = esc(short.slice(0, i + 1)), base = esc(short.slice(i + 1));
-  return `<span class="where" title="${esc(file)}">${head}<b>${base}</b>${line ? ":" + line : ""}</span>`;
+  return `<span class="where" title="${esc(file)}">${head}<b>${base}</b>${line != null && line !== "" ? ":" + esc(line) : ""}</span>`;
 }
 
 function card(it) {
@@ -299,10 +299,10 @@ function card(it) {
     ? `<button type="button" class="link more" data-more="${it.id}">+${also.length} ${also.length > 1 ? T.moreFiles : T.moreFile}</button>` : "";
   const alsoList = also.length
     ? `<ul class="also" id="also${it.id}" hidden>${also.map(a =>
-        `<li>${esc(a.file)}${a.line ? ":" + a.line : ""}${a.proposal ? `<br>→ ${esc(a.proposal)}` : ""}</li>`).join("")}</ul>` : "";
+        `<li>${esc(a.file)}${a.line != null && a.line !== "" ? ":" + esc(a.line) : ""}${a.proposal ? `<br>→ ${esc(a.proposal)}` : ""}</li>`).join("")}</ul>` : "";
   const text = s.text ?? it.proposal ?? "";
   return `<article class="card" id="c${it.id}" data-id="${it.id}">
-    <div class="meta">${it.verdict ? `<span class="tag ${it.verdict}">${esc(T[it.verdict] || it.verdict)}</span>` : ""}
+    <div class="meta">${it.verdict ? `<span class="tag ${esc(it.verdict)}">${esc(T[it.verdict] || it.verdict)}</span>` : ""}
       ${place(it.file, it.line)}${alsoBtn}</div>
     <div class="diff">
       <div class="ln del"><span class="lab">${esc(T.now)}</span><span class="tx">${esc(it.rule)}</span></div>
@@ -326,12 +326,17 @@ function sync() {
     c.dataset.action = s.action || "";
     c.querySelectorAll(".opt").forEach(b => b.setAttribute("aria-checked", b.dataset.a === s.action));
     $("add" + it.id).hidden = !(it.proposal || s.text || s.action === "rescope");
+    const ta = c.querySelector("[data-text]");
+    const desiredText = s.text ?? it.proposal ?? "";
+    if (ta && document.activeElement !== ta && ta.value !== desiredText) ta.value = desiredText;
     const n = $("note" + it.id);
     n.hidden = !(s.note || s.comment);
+    if (document.activeElement !== n && n.value !== (s.comment || "")) n.value = s.comment || "";
   });
   const total = ITEMS.length;
   $("count").textContent = done === total && total ? T.done : `${done} ${T.of} ${total}`;
   document.querySelectorAll(".ln.add textarea").forEach(grow);
+  if (!$("out").hidden) $("outText").value = JSON.stringify({decisions: decisions()}, null, 2);
 }
 
 function choose(id, a) { st(id).action = a; save(); sync(); }
@@ -411,7 +416,7 @@ const firstUndecided = () => { const i = ITEMS.findIndex(it => !st(it.id).action
 const actionFor = (it, dir) => dir === "left" ? "delete" : dir === "right" ? "keep"
   : dir === "up" ? (it.proposal ? "rescope" : "review") : "review";
 const dirOfAction = a => ({delete: "left", keep: "right", rescope: "up", review: "down"})[a];
-const head = it => `<div class="meta">${it.verdict ? `<span class="tag ${it.verdict}">${esc(T[it.verdict] || it.verdict)}</span>` : ""}${place(it.file, it.line)}</div>`;
+const head = it => `<div class="meta">${it.verdict ? `<span class="tag ${esc(it.verdict)}">${esc(T[it.verdict] || it.verdict)}</span>` : ""}${place(it.file, it.line)}</div>`;
 
 function deckBack(it) {
   return `<div class="dk back" aria-hidden="true">${head(it)}<div class="diff"><div class="ln del"><span class="lab">${esc(T.now)}</span><span class="tx">${esc(it.rule)}</span></div></div></div>`;
@@ -425,7 +430,7 @@ function deckCard(it) {
     <span class="stamp s-up">${esc(up)}</span><span class="stamp s-down">${esc(T.review)}</span>
     ${head(it)}
     ${also.length ? `<details class="more-files"><summary>+${also.length} ${also.length > 1 ? T.moreFiles : T.moreFile}</summary><ul>${also.map(a =>
-      `<li>${esc(a.file)}${a.line ? ":" + a.line : ""}</li>`).join("")}</ul></details>` : ""}
+      `<li>${esc(a.file)}${a.line != null && a.line !== "" ? ":" + esc(a.line) : ""}</li>`).join("")}</ul></details>` : ""}
     <div class="diff">
       <div class="ln del"><span class="lab">${esc(T.now)}</span><span class="tx">${esc(it.rule)}</span></div>
       ${it.proposal ? `<div class="ln add"><span class="lab">${esc(T.proposed)}<button type="button" class="edit" data-dedit="${it.id}">${esc(T.edit)}</button></span><span class="tx" data-ptx="${it.id}">${esc(text)}</span></div>` : ""}
@@ -662,30 +667,44 @@ def main() -> int:
     clean = list(data.get("clean", []))
 
     items, seen = [], set()
-    next_id = max([i.get("id", 0) for i in raw_items if isinstance(i.get("id"), int)] + [0]) + 1
-    for it in raw_items:
+    int_ids = [i.get("id") for i in raw_items
+               if isinstance(i.get("id"), int) and not isinstance(i.get("id"), bool) and i.get("id") > 0]
+    next_id = max(int_ids + [0]) + 1
+    for raw in raw_items:
+        it = dict(raw)
         if it.get("verdict") == "healthy":
             # healthy never needs a decision: fold into the clean list
-            clean.append({"file": it.get("file", ""), "line": it.get("line"), "rule": it.get("rule", ""),
-                          "note": it.get("context", "")})
+            clean.append({"file": str(it.get("file") or ""), "line": it.get("line"),
+                          "rule": str(it.get("rule") or ""), "note": str(it.get("context") or "")})
             print(f"note: healthy item at {it.get('file')} moved to 'clean'", file=sys.stderr)
             continue
-        if "id" not in it or it["id"] in seen:
+        raw_id = it.get("id")
+        valid_id = isinstance(raw_id, int) and not isinstance(raw_id, bool) and raw_id > 0
+        if not valid_id or raw_id in seen:
             if "id" in it:
-                print(f"warning: duplicate id {it['id']}, renumbering", file=sys.stderr)
+                print(f"warning: invalid or duplicate id {raw_id!r}, renumbering", file=sys.stderr)
             it["id"] = next_id
             next_id += 1
         seen.add(it["id"])
+        it["file"] = str(it.get("file") or "")
+        it["rule"] = str(it.get("rule") or "")
+        it["context"] = str(it.get("context") or "")
+        it["outcome"] = str(it.get("outcome") or "")
+        it["proposal"] = str(it.get("proposal") or "")
+        it.setdefault("line", None)
+        also = it.get("also") or []
+        it["also"] = [
+            {"file": str(a.get("file") or ""), "line": a.get("line"), "proposal": str(a.get("proposal") or "")}
+            for a in also if isinstance(a, dict)
+        ]
         sug = ALIASES.get(it.get("suggested"), it.get("suggested"))
         it["suggested"] = sug if sug in ACTIONS else "review"
-        it.setdefault("verdict", "")
-        it.setdefault("proposal", "")
-        it.setdefault("context", "")
-        it.setdefault("line", None)
-        it.setdefault("also", [])
-        if it["verdict"] and it["verdict"] not in VERDICTS:
-            print(f"warning: item {it['id']} verdict '{it['verdict']}' not in {VERDICTS}",
+        verdict = str(it.get("verdict") or "")
+        if verdict and verdict not in VERDICTS:
+            print(f"warning: item {it['id']} verdict '{verdict}' not in {VERDICTS}",
                   file=sys.stderr)
+            verdict = ""
+        it["verdict"] = verdict
         items.append(it)
 
     if not items:

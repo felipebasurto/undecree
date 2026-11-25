@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "undecree",
+  "version": "1.0.1",
+  "description": "Finds one-off comments your agents fossilized into permanent rules ('never use Opus') and lets you keep, rewrite or delete each one, in the chat or in a review page.",
+  "author": {
+    "name": "Felipe Basurto"
+  },
+  "homepage": "https://github.com/felipebasurto/undecree",
+  "repository": "https://github.com/felipebasurto/undecree",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "agents-md",
+    "claude-md",
+    "rules",
+    "memory",
+    "audit"
+  ]
+}

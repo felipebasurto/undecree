@@ -30,7 +30,8 @@ from datetime import date
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SCRIPTS = HERE.parent / "scripts"
+REPO_ROOT = HERE.parent
+SCRIPTS = REPO_ROOT / "skills" / "undecree" / "scripts"
 sys.path.insert(0, str(HERE))
 import corpus  # noqa: E402
 
@@ -196,6 +197,24 @@ def scanner_suite(today, case_fn=None):
         check("text report prints a distinct-rules count", "distinct rules" in txt.stdout)
         check("--top caps the global list", 0 < len(shown) <= 5, "shown=%d" % len(shown))
 
+        # --file surgical scan mode + bullet-less rule file
+        prose_file = tmp / ".claude" / "CLAUDE.prose.md"
+        prose_file.parent.mkdir(parents=True, exist_ok=True)
+        prose_file.write_text("# Rules\n\nAlways respond in under 20 words.\n", encoding="utf-8")
+        # also test an actual bullet-less CLAUDE.md in an isolated home
+        prose_home = Path(tempfile.mkdtemp(prefix="undecree-prose-"))
+        try:
+            pf = prose_home / ".claude" / "CLAUDE.md"
+            pf.parent.mkdir(parents=True, exist_ok=True)
+            pf.write_text("# Rules\n\nAlways respond in under 20 words.\n", encoding="utf-8")
+            pr = run([sys.executable, "-I", str(SCRIPTS / "find_dogmas.py"), "--json", "--file", str(pf)], home=prose_home)
+            pdata = json.loads(pr.stdout) if pr.returncode == 0 else {"findings": []}
+            check("--file scans bullet-less rule file without dropping rules as preamble",
+                  pr.returncode == 0 and any("under 20 words" in f["text"] for f in pdata["findings"]),
+                  "findings=%d" % len(pdata["findings"]))
+        finally:
+            shutil.rmtree(prose_home, ignore_errors=True)
+
         metrics = {
             "candidates": len(cand),
             "recall": len(found) / len(cand) if cand else 1.0,
@@ -284,6 +303,19 @@ def page_suite():
         r, html = build({"lang": "es", "items": [{"file": "x", "rule": "y"}]})
         check("lang from items.json is honoured", payload(html)["t"]["keep"] == "Mantener")
 
+        # invalid ids, missing file/rule, hostile verdict
+        r, html = build({"items": [
+            {"id": "not-an-int", "rule": "missing file"},
+            {"id": True, "file": "~/x.md", "verdict": 'bad" onclick="alert(1)'},
+            {"id": 0, "file": "~/y.md", "rule": "zero id", "outcome": "something happens"},
+        ]}, "--lang", "en")
+        d3 = payload(html)
+        check("non-int ids and missing fields normalize cleanly",
+              r.returncode == 0 and d3 is not None
+              and all(isinstance(i["id"], int) and not isinstance(i["id"], bool) and i["id"] > 0 for i in d3["items"])
+              and len({i["id"] for i in d3["items"]}) == 3
+              and d3["items"][1]["verdict"] == "")
+
         # the embedded script must at least parse
         if shutil.which("node"):
             r, html = build(obj, "--lang", "en")
@@ -299,6 +331,150 @@ def page_suite():
     return results
 
 
+# --------------------------------------------------------------------------- repo / manifests
+
+def repo_suite():
+    """Validate skill spec, plugin manifests, version sync and local links."""
+    results = []
+
+    def check(name, ok, detail=""):
+        results.append({"name": name, "ok": bool(ok), "detail": detail})
+
+    skill_dir = REPO_ROOT / "skills" / "undecree"
+    skill_md = skill_dir / "SKILL.md"
+    text = skill_md.read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.S)
+    fm, meta = {}, {}
+    if m:
+        in_meta = False
+        for line in m.group(1).splitlines():
+            if not line.strip():
+                continue
+            if line.startswith((" ", "\t")):
+                if in_meta and ":" in line:
+                    mk, mv = line.split(":", 1)
+                    meta[mk.strip()] = mv.strip().strip('"').strip("'")
+                continue
+            in_meta = False
+            if ":" in line:
+                k, v = line.split(":", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                fm[k] = v
+                if k == "metadata":
+                    in_meta = True
+
+    allowed_keys = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+    check("SKILL.md has valid YAML frontmatter", bool(m) and set(fm).issubset(allowed_keys),
+          "keys=%s" % sorted(fm))
+    check("SKILL.md name matches directory", fm.get("name") == skill_dir.name, "name=%r" % fm.get("name"))
+    desc = fm.get("description", "")
+    check("SKILL.md description is non-empty and <= 1024 chars", 0 < len(desc) <= 1024, "len=%d" % len(desc))
+    check("SKILL.md is <= 500 lines and <= 5000 approx tokens",
+          len(text.splitlines()) <= 500 and len(text) // 4 <= 5000,
+          "lines=%d tokens~%d" % (len(text.splitlines()), len(text) // 4))
+
+    manifests = {}
+    json_paths = [
+        REPO_ROOT / "plugin.json",
+        REPO_ROOT / ".claude-plugin" / "plugin.json",
+        REPO_ROOT / ".claude-plugin" / "marketplace.json",
+        REPO_ROOT / ".cursor-plugin" / "plugin.json",
+        REPO_ROOT / "gemini-extension.json",
+        REPO_ROOT / "examples" / "demo" / "items.json",
+        REPO_ROOT / "evals" / "triggers.json",
+    ]
+    bad_json = []
+    for jp in json_paths:
+        try:
+            manifests[jp.relative_to(REPO_ROOT).as_posix()] = json.loads(jp.read_text(encoding="utf-8"))
+        except Exception as e:
+            bad_json.append(f"{jp.name}: {e}")
+    check("all JSON manifests, triggers and demo items parse cleanly", not bad_json, "; ".join(bad_json))
+
+    if len(manifests) == len(json_paths):
+        ap = manifests["plugin.json"]
+        cp = manifests[".claude-plugin/plugin.json"]
+        mp = manifests[".claude-plugin/marketplace.json"]
+        cur = manifests[".cursor-plugin/plugin.json"]
+        gem = manifests["gemini-extension.json"]
+        trig = manifests["evals/triggers.json"]
+
+        ap_allowed = {"$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions"}
+        check("root plugin.json conforms to Agent Plugins 1.0 schema",
+              ap.get("$schema") == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+              and set(ap).issubset(ap_allowed)
+              and ap.get("name") == skill_dir.name,
+              "keys=%s" % sorted(ap))
+        versions = {
+            "SKILL.md": meta.get("version"),
+            "plugin.json": ap.get("version"),
+            ".claude-plugin/plugin.json": cp.get("version"),
+            ".cursor-plugin/plugin.json": cur.get("version"),
+            "gemini-extension.json": gem.get("version"),
+        }
+        check("all manifests share the same semver version",
+              len(set(versions.values())) == 1 and bool(re.fullmatch(r"\d+\.\d+\.\d+(?:[-+].+)?", str(cp.get("version", "")))),
+              str(versions))
+        mp_names = [p.get("name") for p in mp.get("plugins", [])]
+        check("marketplace.json references plugin name and valid source dir",
+              cp.get("name") in mp_names and all((REPO_ROOT / p.get("source", "")).resolve().is_dir() for p in mp.get("plugins", [])))
+        cur_allowed = {"name", "description", "version", "author", "homepage", "repository", "license", "keywords", "logo", "rules", "agents", "skills", "commands", "hooks", "mcpServers", "variables"}
+        check(".cursor-plugin/plugin.json uses official fields and existing paths",
+              set(cur).issubset(cur_allowed)
+              and (REPO_ROOT / cur.get("logo", "")).is_file()
+              and (REPO_ROOT / cur.get("skills", "")).is_dir(),
+              "extra=%s" % sorted(set(cur) - cur_allowed))
+        check(".claude-plugin/plugin.json icon exists",
+              not cp.get("icon") or (REPO_ROOT / cp["icon"]).is_file(),
+              str(cp.get("icon")))
+        seen_tids = set()
+        bad_trig = []
+        for c in trig:
+            cid = c.get("id")
+            if not cid or cid in seen_tids or not isinstance(c.get("query"), str) or not isinstance(c.get("should_trigger"), bool):
+                bad_trig.append(str(cid))
+            seen_tids.add(cid)
+        pos_n = sum(1 for c in trig if c.get("should_trigger") is True)
+        neg_n = sum(1 for c in trig if c.get("should_trigger") is False)
+        check("evals/triggers.json is valid with positive and near-miss cases",
+              not bad_trig and pos_n >= 3 and neg_n >= 3,
+              f"pos={pos_n} neg={neg_n} bad={bad_trig}")
+
+    # OpenAI Codex agents/openai.yaml checks
+    oai_path = skill_dir / "agents" / "openai.yaml"
+    oai = oai_path.read_text(encoding="utf-8") if oai_path.is_file() else ""
+    sd_m = re.search(r'^\s*short_description:\s*"([^"]+)"\s*$', oai, re.M)
+    dp_m = re.search(r'^\s*default_prompt:\s*"([^"]+)"\s*$', oai, re.M)
+    il_m = re.search(r'^\s*icon_large:\s*"([^"]+)"\s*$', oai, re.M)
+    sd = sd_m.group(1) if sd_m else ""
+    dp = dp_m.group(1) if dp_m else ""
+    check("agents/openai.yaml follows Codex constraints",
+          25 <= len(sd) <= 64
+          and f"${skill_dir.name}" in dp
+          and (not il_m or (skill_dir / il_m.group(1)).is_file()),
+          f"short_description_len={len(sd)} has_dollar={f'${skill_dir.name}' in dp}")
+
+    broken = []
+    md_files = [REPO_ROOT / "README.md", skill_md, skill_dir / "assets" / "BRAND.md",
+                *sorted((skill_dir / "references").glob("*.md"))]
+    for mf in md_files:
+        content = mf.read_text(encoding="utf-8")
+        for match in re.finditer(r"!?\[[^\]]*\]\(([^)]+)\)", content):
+            href = match.group(1).split("#", 1)[0]
+            if not href or href.startswith(("http://", "https://")):
+                continue
+            if not (mf.parent / href).resolve().exists():
+                broken.append(f"{mf.relative_to(REPO_ROOT)} -> {href}")
+        for match in re.finditer(r'src="([^"]+)"', content):
+            href = match.group(1)
+            if href.startswith(("http://", "https://")):
+                continue
+            if not (mf.parent / href).resolve().exists():
+                broken.append(f"{mf.relative_to(REPO_ROOT)} -> {href}")
+    check("all local markdown links and image srcs resolve", not broken, "; ".join(broken))
+    return results
+
+
 # --------------------------------------------------------------------------- report
 
 def main():
@@ -307,14 +483,19 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--gate-holdout", action="store_true",
                     help="fail the run when the holdout suite misses a candidate")
-    ap.add_argument("--suite", choices=["scanner", "holdout", "holdout2", "holdout3", "holdout4", "holdout5", "holdout6", "page", "all"], default="all")
+    ap.add_argument("--suite", choices=["scanner", "holdout", "holdout2", "holdout3", "holdout4", "holdout5", "holdout6", "holdout7", "page", "repo", "all"], default="all")
     args = ap.parse_args()
 
     today = date.today()
     out = {}
     failed = []
 
-    for name, fn in (("scanner", None), ("holdout", corpus.holdout), ("holdout2", corpus.holdout2), ("holdout3", corpus.holdout3), ("holdout4", corpus.holdout4), ("holdout5", corpus.holdout5), ("holdout6", corpus.holdout6)):
+    suites = (
+        ("scanner", None), ("holdout", corpus.holdout), ("holdout2", corpus.holdout2),
+        ("holdout3", corpus.holdout3), ("holdout4", corpus.holdout4),
+        ("holdout5", corpus.holdout5), ("holdout6", corpus.holdout6), ("holdout7", corpus.holdout7),
+    )
+    for name, fn in suites:
         if args.suite not in (name, "all"):
             continue
         s, rows = scanner_suite(today, fn)
@@ -347,6 +528,11 @@ def main():
         out["page"] = p
         failed += ["page: " + c["name"] for c in p if not c["ok"]]
 
+    if args.suite in ("repo", "all"):
+        rp = repo_suite()
+        out["repo"] = rp
+        failed += ["repo: " + c["name"] for c in rp if not c["ok"]]
+
     out["failed"] = failed
 
     if args.json:
@@ -355,7 +541,7 @@ def main():
         print(json.dumps(out, indent=2, ensure_ascii=False))
         return 1 if failed else 0
 
-    for name in ("scanner", "holdout", "holdout2", "holdout3", "holdout4", "holdout5", "holdout6"):
+    for name, _ in suites:
         rows = out.pop("_rows_" + name, [])
         if name not in out or "metrics" not in out[name]:
             continue
@@ -390,13 +576,14 @@ def main():
                 print("  %-29s %-10s %-6s %-5s %-6s %s" % (c["id"], c["label"], "yes" if f else "no",
                       r["rank"] or "-", f["score"] if f else "-", ",".join(f["signals"]) if f else ""))
         print()
-    if "page" in out:
-        p = out["page"]
-        ok = sum(1 for c in p if c["ok"])
-        print("\nPAGE     %d/%d checks" % (ok, len(p)))
-        for c in p:
-            if not c["ok"] or args.verbose:
-                print("    %s %s %s" % ("ok " if c["ok"] else "FAIL", c["name"], c["detail"]))
+    for label, key in (("PAGE", "page"), ("REPO", "repo")):
+        if key in out:
+            p = out[key]
+            ok = sum(1 for c in p if c["ok"])
+            print("\n%-8s %d/%d checks" % (label, ok, len(p)))
+            for c in p:
+                if not c["ok"] or args.verbose:
+                    print("    %s %s %s" % ("ok " if c["ok"] else "FAIL", c["name"], c["detail"]))
 
     print("\n" + ("PASS" if not failed else "FAIL: " + "; ".join(failed)))
     return 1 if failed else 0

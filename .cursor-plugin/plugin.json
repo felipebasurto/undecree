@@ -1,13 +1,20 @@
 {
   "name": "undecree",
-  "displayName": "undecree",
-  "version": "1.0.0",
-  "description": "Finds the one-off comments your agents fossilized into permanent rules ("never use Opus") and opens a review page where you keep, rewrite or delete each one.",
-  "author": { "name": "Felipe Basurto" },
+  "version": "1.0.1",
+  "description": "Finds one-off comments your agents fossilized into permanent rules ('never use Opus') and lets you keep, rewrite or delete each one, in the chat or in a review page.",
+  "author": {
+    "name": "Felipe Basurto"
+  },
   "homepage": "https://github.com/felipebasurto/undecree",
   "repository": "https://github.com/felipebasurto/undecree",
   "license": "MIT",
   "logo": "assets/logo.png",
-  "keywords": ["agents-md", "rules", "memory", "audit"],
+  "keywords": [
+    "agents-md",
+    "claude-md",
+    "rules",
+    "memory",
+    "audit"
+  ],
   "skills": "./skills/"
 }

@@ -525,3 +525,35 @@ def holdout6(today):
         dict(id="n6-mem-fact", file=m + "infra.md", mtype="reference", label=N,
              text="The primary database is Postgres 16 and never sleeps."),
     ]
+
+
+def holdout7(today):
+    """Round 7. Tests structural edge cases (inline HTML comments, nested fences,
+    CLAUDE.local.md, AGENTS.override.md) alongside fresh phrasing."""
+    t = lambda n: d(today, n)
+    C, L, N, X = "candidate", "low", "clean", "excluded"
+    g = ".claude/CLAUDE.md"
+    m = ".claude/projects/-Users-x-app/memory/"
+    return [
+        dict(id="r7-inline-comment", file=g, label=C, match="Never use Opus",
+             text="<!-- old note --> - Never use Opus for anything."),
+        dict(id="r7-multiline-comment-tail", file=g, label=C, match="Do not push",
+             text="<!-- disabled note\n--> - Do not push to staging this week."),
+        dict(id="r7-local-claude", file=".claude/CLAUDE.local.md", label=C,
+             text="- Never run the slow integration suite, credits are tight."),
+        dict(id="r7-codex-override", file=".codex/AGENTS.override.md", label=C,
+             text="- Always use Haiku only."),
+        dict(id="r7-nested-mem", file=m + "sub/cost.md", mtype="feedback", label=C,
+             text="Don't spawn subagents until next month."),
+        dict(id="r7-nested-fence", file=g, label=X, match="Never leak inside outer fence",
+             text="````md\n```bash\necho hi\n```\nNever leak inside outer fence.\n````"),
+        dict(id="r7-low-reminder", file=g, label=L,
+             text="- Don't forget to run `make format` before pushing."),
+        dict(id="n7-todays-deploy", file=g, label=N,
+             text="- Today's release window opens at 16:00 UTC."),
+        dict(id="n7-currently-fact", file=g, label=N,
+             text="- Currently the worker pool runs 4 replicas."),
+        dict(id="r7-es-presupuesto", file=g, label=C,
+             text="- No tengo presupuesto, usa siempre el modelo más barato."),
+    ]
+

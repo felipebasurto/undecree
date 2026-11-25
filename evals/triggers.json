@@ -1,0 +1,72 @@
+[
+  {
+    "id": "explicit-command-es",
+    "query": "Limpia mis dogmas de agentes, creo que tengo reglas viejas que ya no aplican.",
+    "should_trigger": true
+  },
+  {
+    "id": "explicit-audit-en",
+    "query": "Audit my Claude Code, Cursor and Codex rules and memory files for fossilized one-off directives.",
+    "should_trigger": true
+  },
+  {
+    "id": "why-refusing-model-en",
+    "query": "Why do you keep refusing to use Opus even when I ask for it by name? Find whatever rule is blocking it.",
+    "should_trigger": true
+  },
+  {
+    "id": "why-refusing-model-es",
+    "query": "¿Por qué ya no usas Opus ni lanzas subagentes? Quita esa regla, eso ya no aplica.",
+    "should_trigger": true
+  },
+  {
+    "id": "stale-memory-en",
+    "query": "My agents still think I don't have Devin access and answer in 6 words. Clean up my global config and memory.",
+    "should_trigger": true
+  },
+  {
+    "id": "invoke-by-name",
+    "query": "Run undecree on my agent config.",
+    "should_trigger": true
+  },
+  {
+    "id": "review-claude-md-rules",
+    "query": "Check my ~/.claude/CLAUDE.md and AGENTS.md files for absolute bans that lost their context.",
+    "should_trigger": true
+  },
+  {
+    "id": "near-miss-add-rule",
+    "query": "Add a rule to this repo's AGENTS.md telling agents to run pnpm typecheck before committing.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-write-claude-md",
+    "query": "Create a brand new CLAUDE.md for this TypeScript project documenting our build commands and folder structure.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-code-lint",
+    "query": "Audit our ESLint rules in eslint.config.js and remove deprecated plugins.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-ui-copy",
+    "query": "Clean up the AI-generated copy and badges on src/pages/Pricing.tsx.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-test-cleanup",
+    "query": "Prune the redundant unit tests in tests/billing and write a SPEC.md for the area.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-git-history",
+    "query": "Check git log to see who added the rate-limit middleware in src/api/middleware.ts.",
+    "should_trigger": false
+  },
+  {
+    "id": "near-miss-firewall-rules",
+    "query": "Review our Cloudflare WAF rules and remove any expired IP blocks.",
+    "should_trigger": false
+  }
+]

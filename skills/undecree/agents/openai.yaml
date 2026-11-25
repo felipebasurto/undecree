@@ -1,6 +1,9 @@
 interface:
   display_name: "undecree"
-  short_description: "Find one-off comments that became permanent agent rules, then keep, rewrite or delete them"
-  default_prompt: "Run undecree on my agent config"
+  short_description: "Find and undo one-off comments fossilized into agent rules"
+  icon_large: "./assets/mark.svg"
+  brand_color: "#4fd08a"
+  default_prompt: "Run $undecree on my agent config and show me any fossilized rules."
+
 policy:
   allow_implicit_invocation: true
